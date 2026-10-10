@@ -10,6 +10,7 @@ import { useWakeLock } from './lib/wakelock.js'
 import { startFlow } from './sheets.jsx'
 import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
+import Sidebar from './components/Sidebar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
 import Toast from './components/Toast.jsx'
@@ -64,31 +65,36 @@ function Shell() {
 
   return (
     <>
-      {/* keyed on the route: a view that throws is contained, and switching tabs
-          re-mounts the boundary, so the tab bar is always a way out */}
-      <div id="app" className="vfade" key={loc.pathname}>
-        <ErrorBoundary>
-          {!authed ? <Login /> : (
-            <Routes>
-              <Route path="/home" element={<Home />} />
-              <Route path="/plan" element={<Plan />} />
-              <Route path="/plan/r/:id" element={<RoutineEdit />} />
-              <Route path="/workout" element={<Workout />} />
-              <Route path="/stats" element={<Stats />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/settings" element={<Settings />} />
-              {/* The Coach screens gate themselves on the instance config; the routes exist
-                  unconditionally so a deep link from a notification lands somewhere sane
-                  rather than on the catch-all. */}
-              <Route path="/coach" element={<Coach />} />
-              <Route path="/coach/intake" element={<CoachIntake />} />
-              <Route path="/coach/proposal" element={<CoachProposal />} />
-              <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
-              <Route path="*" element={<Navigate to="/home" replace />} />
-            </Routes>
-          )}
-        </ErrorBoundary>
+      <div className="layout-shell">
+        <Sidebar onStart={startFlow} />
+        <main className="layout-main">
+          {/* keyed on the route: a view that throws is contained, and switching tabs
+              re-mounts the boundary, so the tab bar is always a way out */}
+          <div id="app" className="vfade" key={loc.pathname}>
+            <ErrorBoundary>
+              {!authed ? <Login /> : (
+                <Routes>
+                  <Route path="/home" element={<Home />} />
+                  <Route path="/plan" element={<Plan />} />
+                  <Route path="/plan/r/:id" element={<RoutineEdit />} />
+                  <Route path="/workout" element={<Workout />} />
+                  <Route path="/stats" element={<Stats />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/library" element={<Library />} />
+                  <Route path="/settings" element={<Settings />} />
+                  {/* The Coach screens gate themselves on the instance config; the routes exist
+                      unconditionally so a deep link from a notification lands somewhere sane
+                      rather than on the catch-all. */}
+                  <Route path="/coach" element={<Coach />} />
+                  <Route path="/coach/intake" element={<CoachIntake />} />
+                  <Route path="/coach/proposal" element={<CoachProposal />} />
+                  <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
+                  <Route path="*" element={<Navigate to="/home" replace />} />
+                </Routes>
+              )}
+            </ErrorBoundary>
+          </div>
+        </main>
       </div>
       <TabBar onStart={startFlow} />
       <RestTimer />

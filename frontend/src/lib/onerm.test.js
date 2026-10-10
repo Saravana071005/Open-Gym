@@ -88,6 +88,14 @@ describe('bestSetOf', () => {
     expect(bestSetOf({ id: 'p', sets: [{ sec: 60, w: 20, done: true }] })).toBeNull()
   })
 
+  it('ignores warm-up sets marked with warmup: true', () => {
+    const entry = { id: 'x', sets: [
+      { w: 140, r: 10, done: true, warmup: true },
+      { w: 100, r: 5, done: true, warmup: false }
+    ] }
+    expect(bestSetOf(entry).w).toBe(100)
+  })
+
   it('survives a missing or empty entry', () => {
     expect(bestSetOf(null)).toBeNull()
     expect(bestSetOf({ sets: [] })).toBeNull()

@@ -24,6 +24,12 @@ export default function Plan() {
     nav('/plan/r/' + r.id)
   }
 
+  const duplicateRoutine = r => {
+    const dup = { id: uid(), name: `${r.name} (${t('Copy')})`, emoji: r.emoji, prog: r.prog, ex: JSON.parse(JSON.stringify(r.ex || [])) }
+    update(s => { s.routines.push(dup) })
+    nav('/plan/r/' + dup.id)
+  }
+
   return <>
     <div className="hdr">
       <div><h1>{t('Plan')}</h1><div className="sub">{t('Your weekly routine')}</div></div>
@@ -49,6 +55,9 @@ export default function Plan() {
       {S.routines.length ? <div className="list">{S.routines.map(r => <div key={r.id} className="item" onClick={() => nav('/plan/r/' + r.id)}>
         <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
         <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
+        <button className="iconbtn" style={{ width: 28, height: 28, fontSize: 13 }} title={t('Duplicate routine')} onClick={ev => { ev.stopPropagation(); duplicateRoutine(r) }}>
+          <Icon name="clipboard" />
+        </button>
         <Icon name="chevronRight" className="chev" /></div>)}</div> : <>
         <div className="empty"><div className="ico"><Icon name="clipboard" /></div>{t('No routines yet.')}<br />{t('Create one or load the starter plan.')}</div>
         <Button icon="sparkles" onClick={loadStarterPlan}>{t('Load starter plan (Push / Pull / Legs)')}</Button>

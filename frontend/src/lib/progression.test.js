@@ -47,6 +47,22 @@ describe('readSession', () => {
     expect(readSession({ id: LIFT, target: T, sets: [{ w: 60, r: 5, done: true }, { w: 60, r: 5, done: true }] }).ok).toBe(false)
   })
 
+  it('ignores warm-up sets when counting sets and determining hit', () => {
+    const s = readSession({
+      id: LIFT,
+      target: T,
+      sets: [
+        { w: 30, r: 10, done: true, warmup: true },
+        { w: 45, r: 5, done: true, warmup: true },
+        { w: 60, r: 5, done: true, warmup: false },
+        { w: 60, r: 5, done: true, warmup: false },
+        { w: 60, r: 5, done: true, warmup: false }
+      ]
+    })
+    expect(s.ok).toBe(true)
+    expect(s.weight).toBe(60)
+  })
+
   it('refuses to call a session a hit when nothing was prescribed', () => {
     expect(readSession({ id: LIFT, target: {}, sets: [{ w: 60, r: 5, done: true }] }).ok).toBe(false)
   })

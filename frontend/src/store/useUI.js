@@ -41,11 +41,11 @@ export const useUI = create((set, get) => ({
   startRest(sec) {
     get().stopRest()
     const endsAt = Date.now() + sec * 1000
-    set({ timer: { left: sec, total: sec, endsAt } })
+    set({ timer: { left: sec, total: sec, initialTotal: sec, endsAt, paused: false } })
     pushRestTimer(sec)
     timerTick = () => {
       const tm = get().timer
-      if (!tm) return
+      if (!tm || tm.paused) return
       const left = Math.max(0, Math.round((tm.endsAt - Date.now()) / 1000))
       if (left === tm.left) return
       const snd = useStore.getState().S.sound
@@ -59,6 +59,25 @@ export const useUI = create((set, get) => ({
     timerInt = setInterval(timerTick, 1000)
     document.addEventListener('visibilitychange', timerTick)
   },
+  pauseRest() {
+    const tm = get().timer
+    if (!tm || tm.paused) return
+    cancelPushRestTimer()
+    set({ timer: { ...tm, paused: true } })
+  },
+  resumeRest() {
+    const tm = get().timer
+    if (!tm || !tm.paused) return
+    const endsAt = Date.now() + tm.left * 1000
+    set({ timer: { ...tm, endsAt, paused: false } })
+    pushRestTimer(tm.left)
+  },
+  resetRest() {
+    const tm = get().timer
+    if (!tm) return
+    const sec = tm.initialTotal || tm.total || 90
+    get().startRest(sec)
+  },
   addRest(sec) {
     const tm = get().timer
     if (!tm) return
@@ -66,8 +85,9 @@ export const useUI = create((set, get) => ({
     // taking off more than is left means "I'm ready now" — same as skipping, and it keeps a
     // negative duration out of both the progress bar and the server-side push schedule
     if (left <= 0) { get().stopRest(); return }
-    set({ timer: { ...tm, left, total: tm.total + sec, endsAt: tm.endsAt + sec * 1000 } })
-    pushRestTimer(left)
+    const endsAt = tm.paused ? tm.endsAt : (Date.now() + left * 1000)
+    set({ timer: { ...tm, left, total: Math.max(left, tm.total + sec), endsAt } })
+    if (!tm.paused) pushRestTimer(left)
   },
   stopRest() {
     if (timerInt) clearInterval(timerInt); timerInt = null

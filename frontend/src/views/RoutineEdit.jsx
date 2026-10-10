@@ -64,7 +64,14 @@ export default function RoutineEdit() {
       return <div key={i}>
         {unitFirst.has(i) && <div className="ss-label"><Icon name="link" />{t('Superset')}</div>}
         <div className={'item' + (inSS.has(i) ? ' in-ss' : '')} onClick={() => {
-          exConfigSheet(ex, e, cfg => edit(x => { x[i] = { id: x[i].id, sg: x[i].sg, ...cfg } }), () => edit(x => { x.splice(i, 1); cleanupSg(x) }), r)
+          exConfigSheet(
+            ex,
+            e,
+            cfg => edit(x => { x[i] = { id: x[i].id, sg: x[i].sg, ...cfg } }),
+            () => edit(x => { x.splice(i, 1); cleanupSg(x) }),
+            r,
+            () => exercisePicker(newEx => edit(x => { x[i] = { ...x[i], id: newEx.id } }))
+          )
         }}>
           <Thumb ex={ex} />
           <div className="grow"><div className="tt capitalize">{ex.n}</div><div className="ss">{exLine(e, S.unit)}</div></div>
@@ -95,6 +102,12 @@ export default function RoutineEdit() {
 
     <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above — you’ll do them back-to-back.')}</div>
     <Button variant="primary" onClick={() => exercisePicker(ex => exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r))} icon="plus">{t('Add exercise')}</Button>
+    <div style={{ height: 10 }} />
+    <Button icon="clipboard" onClick={() => {
+      const dup = { id: uid(), name: `${r.name} (${t('Copy')})`, emoji: r.emoji, prog: r.prog, ex: JSON.parse(JSON.stringify(r.ex)) }
+      update(s => { s.routines.push(dup) })
+      nav('/plan/r/' + dup.id)
+    }}>{t('Duplicate routine')}</Button>
     <div style={{ height: 10 }} />
     <Button variant="danger" onClick={() => confirmSheet({
       title: t('Delete routine?'), message: t('“{0}” and its exercises will be removed.', r.name), confirmText: t('Delete'), danger: true,

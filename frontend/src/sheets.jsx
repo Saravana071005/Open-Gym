@@ -282,10 +282,22 @@ function OneRM({ ex }) {
 
 function ExerciseDetail({ ex, close }) {
   const st = useStore(s => s.S)
+  const toggleFavorite = useStore(s => s.toggleFavorite)
+  const isFav = (st.favorites || []).includes(ex.id)
   const last = lastEntryFor(st, ex.id)
   const best = bestWeightFor(st, ex.id)
   return <>
-    <h3 className="capitalize">{ex.n}</h3>
+    <div className="row between" style={{ marginBottom: 6 }}>
+      <h3 className="capitalize" style={{ margin: 0 }}>{ex.n}</h3>
+      <button
+        className="iconbtn"
+        style={{ width: 34, height: 34, fontSize: 16, color: isFav ? 'var(--yellow)' : 'var(--label-3)' }}
+        onClick={() => toggleFavorite(ex.id)}
+        aria-label={isFav ? t('Remove from favorites') : t('Add to favorites')}
+      >
+        <Icon name={isFav ? 'starFill' : 'star'} />
+      </button>
+    </div>
     <Media ex={ex} />
     <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
       <span className="tag acc">{t(ex.bp)}</span>
@@ -346,6 +358,34 @@ function CustomExForm({ existing, prefill, onDone, close }) {
   const [n, setN] = useState(existing ? existing.n : (prefill || ''))
   const [bp, setBp] = useState(existing ? existing.bp : '')
   const [desc, setDesc] = useState(existing ? (existing.desc || '') : '')
+  const [customImage, setCustomImage] = useState(existing ? (existing.customImage || '') : '')
+  const imgInputRef = useRef(null)
+
+  const handleImgFile = e => {
+    const file = e.target.files[0]
+    if (!file) return
+    const rd = new FileReader()
+    rd.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const maxDim = 400
+        let w = img.width, h = img.height
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim }
+          else { w = Math.round((w * maxDim) / h); h = maxDim }
+        }
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        setCustomImage(canvas.toDataURL('image/jpeg', 0.8))
+      }
+      img.src = rd.result
+    }
+    rd.readAsDataURL(file)
+  }
+
   const save = () => {
     const name = n.trim()
     if (!name) { toast(t('Give it a name')); return }
@@ -354,24 +394,51 @@ function CustomExForm({ existing, prefill, onDone, close }) {
     if (dup) { toast(t('“{0}” already exists', dup.n)); return }
     const d = desc.trim().slice(0, 1000)
     let id = existing && existing.id
-    if (existing) update(s => { const c = (s.customEx || []).find(x => x.id === id); if (c) { c.n = name; c.bp = bp; c.desc = d } })
+    if (existing) update(s => {
+      const c = (s.customEx || []).find(x => x.id === id)
+      if (c) { c.n = name; c.bp = bp; c.desc = d; c.customImage = customImage }
+    })
     else {
       id = 'c' + uid()
-      update(s => { (s.customEx = s.customEx || []).push({ id, n: name, bp, desc: d, tg: '', eq: 'custom', custom: true }) })
+      update(s => {
+        (s.customEx = s.customEx || []).push({ id, n: name, bp, desc: d, tg: '', eq: 'custom', custom: true, customImage })
+      })
     }
     close()
     toast(existing ? t('Saved') : t('“{0}” created', name))
     onDone && onDone(EXIDX[id])
   }
+
   return <>
     <h3>{existing ? t('Edit custom exercise') : t('Create your own exercise')}</h3>
-    <div className="muted small" style={{ marginBottom: 12 }}>{t('Name it and pick a body part — it behaves like any other exercise, just without an animation.')}</div>
+    <div className="muted small" style={{ marginBottom: 12 }}>{t('Name it, pick a body part, and optionally add cues or a photo.')}</div>
     <input className="input" placeholder={t('Exercise name')} value={n} onChange={e => setN(e.target.value)} />
     <div className="chips" style={{ margin: '12px 0' }}>
       {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => setBp(b)}>{t(b)}</button>)}
     </div>
     {bp === 'cardio' && <div className="small dim row" style={{ marginBottom: 10, gap: 5 }}><Icon name="figureRun" style={{ fontSize: 13 }} />{t('Cardio exercises log time + speed instead of weight × reps.')}</div>}
-    <textarea className="input" rows={4} maxLength={1000} placeholder={t('Description (optional) — setup, cues, anything you want to remember')}
+    
+    <div style={{ marginBottom: 12 }}>
+      <div className="small muted" style={{ marginBottom: 6 }}>{t('Exercise Photo (optional)')}</div>
+      <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+        {customImage ? (
+          <div style={{ position: 'relative' }}>
+            <img src={customImage} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: 'var(--hair) solid var(--sep)' }} />
+            <button className="iconbtn" style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, fontSize: 11, background: 'var(--red)', color: '#fff' }} onClick={() => setCustomImage('')} aria-label="Remove image">
+              <Icon name="xmark" />
+            </button>
+          </div>
+        ) : (
+          <div className="thumb thumb-x" style={{ width: 64, height: 64, borderRadius: 8 }}><Icon name="camera" /></div>
+        )}
+        <div>
+          <Button size="sm" icon="camera" onClick={() => imgInputRef.current?.click()}>{customImage ? t('Change photo') : t('Upload photo')}</Button>
+          <input ref={imgInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImgFile} />
+        </div>
+      </div>
+    </div>
+
+    <textarea className="input" rows={3} maxLength={1000} placeholder={t('Description (optional) — setup, cues, anything you want to remember')}
       value={desc} onChange={e => setDesc(e.target.value)} />
     <div style={{ height: 14 }} />
     <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Create exercise')}</Button>
@@ -411,14 +478,15 @@ function usageMap(st) {
 function ExercisePicker({ onPick, close }) {
   const st = useStore(s => s.S)
   const usage = usageMap(st)
+  const favorites = st.favorites || []
   const [q, setQ] = useState('')
-  const [bp, setBp] = useState('')          // '' = all, '★' = chosen, else a body part
+  const [bp, setBp] = useState('')          // '' = all, 'fav' = favorites, '★' = chosen, else a body part
   const [eq, setEq] = useState('')          // '' = any equipment
   const [shown, setShown] = useState(50)
   const ql = q.toLowerCase().trim()
   const all = allExercises(st)
   let base = all.filter(e =>
-    (bp === '★' ? usage[e.id] : (!bp || e.bp === bp)) &&
+    (bp === 'fav' ? favorites.includes(e.id) : bp === '★' ? usage[e.id] : (!bp || e.bp === bp)) &&
     (!ql || e.n.toLowerCase().includes(ql) || e.tg.includes(ql) || e.eq.includes(ql) || (e.desc || '').toLowerCase().includes(ql)))
   if (bp === '★') base = [...base].sort((a, b) => (usage[b.id] - usage[a.id]) || (a.n < b.n ? -1 : 1))
   const eqOpts = equipmentOf(base)
@@ -431,6 +499,9 @@ function ExercisePicker({ onPick, close }) {
     <div className="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
       <input className="input" placeholder={t('Search {0} exercises…', all.length)} value={q} onChange={e => { setQ(e.target.value); setShown(50) }} /></div>
     <div className="chips" style={{ margin: eqOpts.length > 1 ? '10px 0 6px' : '10px 0' }}>
+      {favorites.length > 0 && <button className={'chip' + (bp === 'fav' ? ' on' : '')} onClick={() => { setBp('fav'); setEq(''); setShown(50) }}>
+        <Icon name="starFill" style={{ fontSize: 12, marginRight: 4, display: 'inline-block' }} />{t('Favorites')} ({favorites.length})
+      </button>}
       {chosenCount > 0 && <button className={'chip' + (bp === '★' ? ' on' : '')} onClick={() => { setBp('★'); setEq(''); setShown(50) }}><Icon name="starFill" style={{ fontSize: 12, display: 'inline-block', marginRight: 4, verticalAlign: '-1px' }} />{t('Chosen')} ({chosenCount})</button>}
       <button className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setEq(''); setShown(50) }}>{t('All')}</button>
       {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setEq(''); setShown(50) }}>{t(b)}</button>)}
@@ -482,7 +553,7 @@ function ProgressionFields({ ex, mode, c, setC, routine, unit }) {
   </>
 }
 
-function ExConfig({ ex, existing, onSave, onDelete, close, routine }) {
+function ExConfig({ ex, existing, onSave, onDelete, close, routine, onReplace }) {
   const st = useStore(s => s.S)
   const cardio = isCardio(ex.id)
   const [c, setC] = useState(existing || defaultConfig(ex.id))
@@ -540,11 +611,12 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine }) {
     </div>}
     <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} />
     <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Add to routine')}</Button>
+    {onReplace && <><div style={{ height: 8 }} /><Button icon="shuffle" onClick={() => { close(); onReplace() }}>{t('Replace exercise')}</Button></>}
     {ex.custom && <><div style={{ height: 8 }} /><Button icon="pencil" onClick={() => { close(); customExSheet(ex) }}>{t('Edit or delete this exercise')}</Button></>}
     {onDelete && <><div style={{ height: 8 }} /><Button variant="danger" onClick={() => { close(); onDelete() }}>{t('Remove from routine')}</Button></>}
   </>
 }
-export const exConfigSheet = (ex, existing, onSave, onDelete, routine) => ui().openSheet(close => <ExConfig ex={ex} existing={existing} onSave={onSave} onDelete={onDelete} routine={routine} close={close} />)
+export const exConfigSheet = (ex, existing, onSave, onDelete, routine, onReplace) => ui().openSheet(close => <ExConfig ex={ex} existing={existing} onSave={onSave} onDelete={onDelete} routine={routine} onReplace={onReplace} close={close} />)
 
 /* ============================ glyph picker ============================ */
 // Grouped by what the glyph means for a training day, so picking one is a scan
@@ -919,7 +991,7 @@ function doFinishWorkout() {
   const prs = []
   const e1prs = []
   A.entries.forEach(e => {
-    const mx = Math.max(0, ...e.sets.filter(s => s.done).map(s => s.w))
+    const mx = Math.max(0, ...e.sets.filter(s => s.done && !s.warmup).map(s => s.w))
     if (mx > 0 && mx > bestWeightFor(st, e.id)) prs.push(e.id)
     // A heavier estimate without a heavier top set is its own kind of progress —
     // same weight for more reps. Reported separately so it can't be read as a load PR.
@@ -936,8 +1008,12 @@ function doFinishWorkout() {
   }
   w.vol = workoutVolume(w)
   update(s => {
+    if (s.workouts.some(item => item.id === w.id)) {
+      s.active = null
+      return
+    }
     w.entries.forEach(e => {
-      const mx = Math.max(0, ...e.sets.filter(x => x.done).map(x => x.w || 0), e.topW || 0)
+      const mx = Math.max(0, ...e.sets.filter(x => x.done && !x.warmup).map(x => x.w || 0), e.topW || 0)
       if (mx > 0) { const cur = s.exWeights[e.id]; if (!cur || mx > cur.w) s.exWeights[e.id] = { w: mx, d: w.d } }
     })
     s.workouts.push(w)

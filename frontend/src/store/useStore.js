@@ -16,10 +16,8 @@ export const DEF = {
   // server pull, backup import) still falls back to the `showRir` boolean this replaced and
   // keeps the column it had. See effortOf.
   reminder: { on: false, time: '08:00', tz: null }, effort: null,
-  // AI Coach (issue: AI enablement). null until the profile opts in — a null namespace is the
-  // same app it was before the feature existed, which is what Epic F asks for. Shape and
-  // bounds live in lib/coach.js.
-  coach: null
+  coach: null,
+  favorites: []
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
@@ -99,6 +97,16 @@ export const useStore = create((set, get) => {
       persist(S, push)
     },
     replaceState(S, push = false) { persist(clone(S), push) },
+
+    toggleFavorite(id) {
+      get().update(s => {
+        s.favorites = s.favorites || []
+        const idx = s.favorites.indexOf(id)
+        if (idx >= 0) s.favorites.splice(idx, 1)
+        else s.favorites.push(id)
+      })
+    },
+    isFavorite: id => (get().S.favorites || []).includes(id),
 
     isGuest: () => localStorage.getItem('gym_guest') === '1',
     setGuest(v) { if (v) localStorage.setItem('gym_guest', '1'); else localStorage.removeItem('gym_guest'); set({}) },

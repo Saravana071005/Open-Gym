@@ -8,7 +8,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode><App /></StrictMode>
 )
 
-// Not in the mobile build: the native shell already serves everything from disk.
-if (!MOBILE && 'serviceWorker' in navigator && location.protocol === 'https:') {
+const isSecureOrLocalhost = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+if (!MOBILE && 'serviceWorker' in navigator && isSecureOrLocalhost) {
   navigator.serviceWorker.register('sw.js').catch(() => {})
 }

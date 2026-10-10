@@ -12,7 +12,7 @@ const clock = sec => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '
 export default function RestTimer() {
   const timer = useUI(s => s.timer)
   const work = useUI(s => s.work)
-  const { addRest, stopRest, finishWorkEarly, stopWork } = useUI()
+  const { addRest, stopRest, pauseRest, resumeRest, resetRest, finishWorkEarly, stopWork } = useUI()
   const on = work || timer
   // The bar is fixed above the tab bar and floats over whatever is beneath it — during a
   // rest that was the next set's row. Extra bottom padding lets the page scroll clear.
@@ -34,17 +34,21 @@ export default function RestTimer() {
       <Button size="sm" variant="primary" icon="check" onClick={finishWorkEarly}>{t('Done')}</Button>
     </div>
   )
-  // Three controls plus the clock don't fit one line on a phone — at 360px the bar is left
-  // with about 30px and stops saying anything. So the rest variant stacks: clock and bar
-  // read at a glance, controls get their own row. −15 and +15 sit together in number-line
-  // order; Skip is pushed to the far edge, away from the button you tap to buy more time.
+
+  const isPaused = !!timer.paused
   return (
     <div id="timer" className="rest">
       <div className="head">
-        <div className="t">{clock(timer.left)}</div>
+        <div className="t">{clock(timer.left)}{isPaused && <span className="small muted" style={{ marginLeft: 6, fontSize: 11, fontWeight: 500 }}>({t('paused')})</span>}</div>
         <div className="bar"><i style={{ width: pct + '%' }} /></div>
       </div>
       <div className="acts">
+        <Button size="sm" icon={isPaused ? 'play' : 'pause'} onClick={isPaused ? resumeRest : pauseRest} title={isPaused ? t('Resume') : t('Pause')}>
+          {isPaused ? t('Resume') : t('Pause')}
+        </Button>
+        <Button size="sm" icon="reset" onClick={resetRest} title={t('Reset')}>
+          {t('Reset')}
+        </Button>
         <Button size="sm" icon="minus" onClick={() => addRest(-15)}>15s</Button>
         <Button size="sm" icon="plus" onClick={() => addRest(15)}>15s</Button>
         <Button size="sm" variant="primary" className="skip" onClick={stopRest}>{t('Skip')}</Button>

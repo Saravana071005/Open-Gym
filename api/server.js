@@ -17,8 +17,18 @@ import { startCadence } from './coach/cadence.js';
 const PORT = +(process.env.PORT || 3000);
 const DATA = process.env.DATA_DIR || '/data';
 const RP_ID = process.env.RP_ID || 'localhost';
-const ORIGIN = process.env.ORIGIN || 'http://localhost:8080';
 const RP_NAME = process.env.RP_NAME || 'openGym';
+const ORIGIN = process.env.ORIGIN || 'http://localhost:8080';
+const ORIGINS = Array.from(new Set([
+  ORIGIN,
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:8080',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  ...(process.env.ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
+]));
 // Admin dashboard (issue): admins are matched by uid; INVITE_ONLY gates new signups behind a
 // code the admin generates. Both default off so a fresh self-hosted instance stays open.
 const ADMIN_UIDS = (process.env.ADMIN_UIDS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -310,7 +320,7 @@ const routes = {
       verification = await verifyRegistrationResponse({
         response: body.credential,
         expectedChallenge: c.challenge,
-        expectedOrigin: ORIGIN,
+        expectedOrigin: ORIGINS,
         expectedRPID: RP_ID,
         requireUserVerification: false
       });
@@ -356,7 +366,7 @@ const routes = {
       verification = await verifyAuthenticationResponse({
         response: body.credential,
         expectedChallenge: c.challenge,
-        expectedOrigin: ORIGIN,
+        expectedOrigin: ORIGINS,
         expectedRPID: RP_ID,
         requireUserVerification: false,
         credential: {
