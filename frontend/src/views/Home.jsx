@@ -73,6 +73,13 @@ export default function Home() {
   const plannedPerWeek = Object.keys(S.week).filter(k => S.week[k]).length
   const bwPoints = S.bodyweight.slice(-30).map(b => ({ t: b.t || new Date(b.d).getTime(), y: b.w, d: b.d }))
 
+  const todayMeals = (S.meals || []).filter(m => m.d === todayISO())
+  const todayCalories = Math.round(todayMeals.reduce((acc, m) => acc + (m.nutrients?.calories || 0), 0))
+  const targetCalories = S.nutritionTargets?.calories || 2000
+  const calPercent = Math.min(100, Math.round((todayCalories / targetCalories) * 100))
+  const todayProtein = Math.round(todayMeals.reduce((acc, m) => acc + (m.nutrients?.protein || 0), 0))
+  const targetProtein = S.nutritionTargets?.protein || 140
+
   // today's session shown right under the week strip
   const onToday = () => { if (S.active) nav('/workout'); else if (routine) startFlow(routine.id); else dayOverrideSheet(todayISO()) }
 
@@ -106,6 +113,35 @@ export default function Home() {
     </div>
 
     {coachOn && <CoachCard nav={nav} />}
+
+    {/* Nutrition Today Glance */}
+    <div className="card tappable" style={{ cursor: 'pointer' }} onClick={() => nav('/nutrition')}>
+      <div className="row between" style={{ marginBottom: 6 }}>
+        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <span className="lrow-i" style={{ background: 'var(--acc)', width: 28, height: 28, fontSize: 14 }}>
+            <Icon name="nutrition" />
+          </span>
+          <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{t('Nutrition')}</h2>
+        </div>
+        <span className="tag acc">{t('Track')} &rarr;</span>
+      </div>
+      <div className="row between" style={{ alignItems: 'baseline', marginTop: 4 }}>
+        <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+          <div className="big">{todayCalories} <span className="muted" style={{ fontSize: '0.95rem' }}>kcal</span></div>
+          <span className="muted small">/ {targetCalories} kcal</span>
+        </div>
+        <div className="small" style={{ fontWeight: 600, color: 'var(--acc)' }}>
+          {calPercent}%
+        </div>
+      </div>
+      <div style={{ height: 6, borderRadius: 3, background: 'var(--surface-3)', marginTop: 8, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${calPercent}%`, background: 'var(--acc)', borderRadius: 3, transition: 'width 0.3s' }} />
+      </div>
+      <div className="row between muted small" style={{ marginTop: 8 }}>
+        <span>{todayMeals.length} {t(todayMeals.length === 1 ? 'entry' : 'entries')}</span>
+        <span>{t('Protein')}: <strong style={{ color: 'var(--fg)' }}>{todayProtein}g</strong> / {targetProtein}g</span>
+      </div>
+    </div>
 
     {!S.routines.length && !S.active && (
       <div className="card">

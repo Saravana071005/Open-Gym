@@ -28,6 +28,7 @@ import Admin from './views/Admin.jsx'
 import Coach from './views/Coach.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachProposal from './views/CoachProposal.jsx'
+import Nutrition from './views/Nutrition.jsx'
 
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
 
@@ -81,6 +82,7 @@ function Shell() {
                   <Route path="/stats" element={<Stats />} />
                   <Route path="/history" element={<History />} />
                   <Route path="/library" element={<Library />} />
+                  <Route path="/nutrition" element={<Nutrition />} />
                   <Route path="/settings" element={<Settings />} />
                   {/* The Coach screens gate themselves on the instance config; the routes exist
                       unconditionally so a deep link from a notification lands somewhere sane

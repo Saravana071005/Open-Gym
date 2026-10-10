@@ -17,7 +17,9 @@ export const DEF = {
   // keeps the column it had. See effortOf.
   reminder: { on: false, time: '08:00', tz: null }, effort: null,
   coach: null,
-  favorites: []
+  favorites: [],
+  nutritionTargets: { calorie: 2000, protein: 140, carb: 220, fat: 65, fibre: 30, diet: 'all' },
+  meals: []
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
@@ -45,7 +47,7 @@ export const useStore = create((set, get) => {
   const persist = (S, push = true) => {
     S._ts = Date.now()
     registerCustom(S.customEx)
-    localStorage.setItem(KEY, JSON.stringify(S))
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(S)) } catch (e) {}
     set({ S })
     if (MOBILE) nativePersist()
     if (push && get().user) {
@@ -58,19 +60,21 @@ export const useStore = create((set, get) => {
   // (e.g. setting the reminder time then immediately backgrounding to test it). On mobile the
   // same applies to the file mirror — backgrounding is often the last thing before the OS
   // kills the app.
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'hidden') return
-    if (MOBILE && saveTm) {
-      clearTimeout(saveTm)
-      saveTm = null
-      nativeSave(get().S)
-    }
-    if (pushTm) {
-      clearTimeout(pushTm)
-      pushTm = null
-      get().pushState()
-    }
-  })
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'hidden') return
+      if (MOBILE && saveTm) {
+        clearTimeout(saveTm)
+        saveTm = null
+        nativeSave(get().S)
+      }
+      if (pushTm) {
+        clearTimeout(pushTm)
+        pushTm = null
+        get().pushState()
+      }
+    })
+  }
 
   // Everything a sign-out leaves behind on this device, whichever way it was triggered.
   const clearLocalSession = () => {
@@ -107,6 +111,32 @@ export const useStore = create((set, get) => {
       })
     },
     isFavorite: id => (get().S.favorites || []).includes(id),
+
+    logMeal(meal) {
+      const item = { id: meal.id || 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), ...meal, t: Date.now() }
+      get().update(s => {
+        s.meals = s.meals || []
+        s.meals.push(item)
+      })
+      return item
+    },
+    updateMeal(id, updates) {
+      get().update(s => {
+        s.meals = s.meals || []
+        const idx = s.meals.findIndex(m => m.id === id)
+        if (idx >= 0) s.meals[idx] = { ...s.meals[idx], ...updates }
+      })
+    },
+    deleteMeal(id) {
+      get().update(s => {
+        s.meals = (s.meals || []).filter(m => m.id !== id)
+      })
+    },
+    setNutritionTargets(targets) {
+      get().update(s => {
+        s.nutritionTargets = { ...(s.nutritionTargets || {}), ...targets }
+      })
+    },
 
     isGuest: () => localStorage.getItem('gym_guest') === '1',
     setGuest(v) { if (v) localStorage.setItem('gym_guest', '1'); else localStorage.removeItem('gym_guest'); set({}) },
