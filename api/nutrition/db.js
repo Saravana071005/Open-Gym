@@ -104,20 +104,21 @@ export function getRecipeIngredients(recipeCode) {
 
 export function getPortionUnits(foodPattern = null) {
   const d = getDb();
+  let specific = [];
   if (foodPattern) {
-    const pat = `%${foodPattern.toLowerCase()}%`;
-    const specific = d.prepare(`
+    const pat = String(foodPattern).toLowerCase().trim();
+    specific = d.prepare(`
       SELECT food_pattern, unit_name, gram_weight, source
       FROM portion_units
-      WHERE food_pattern IS NOT NULL AND ? LIKE '%' || food_pattern || '%'
-    `).all(foodPattern.toLowerCase());
-    if (specific && specific.length) return specific;
+      WHERE food_pattern IS NOT NULL AND (? LIKE '%' || food_pattern || '%' OR food_pattern LIKE '%' || ? || '%')
+    `).all(pat, pat);
   }
-  return d.prepare(`
+  const generic = d.prepare(`
     SELECT food_pattern, unit_name, gram_weight, source
     FROM portion_units
     WHERE food_pattern IS NULL
   `).all();
+  return [...specific, ...generic];
 }
 
 export function getUserTargets(userId) {

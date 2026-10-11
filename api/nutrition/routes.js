@@ -17,7 +17,7 @@ import {
   updateMealLog,
   deleteMealLog
 } from './db.js';
-import { parseMeal } from './parser.js';
+import { parseMeal, parseMealAsync } from './parser.js';
 import { calculateRecipeNutrition, resolveGrams, calculateNutrients } from './engine.js';
 
 export function nutritionRoutes({ json, readBody, readSession }) {
@@ -77,7 +77,7 @@ export function nutritionRoutes({ json, readBody, readSession }) {
       if (!text) return json(res, 400, { error: 'text is required' });
 
       try {
-        const result = parseMeal(text);
+        const result = await parseMealAsync(text);
         json(res, 200, { ok: true, ...result });
       } catch (e) {
         json(res, 500, { error: e.message });

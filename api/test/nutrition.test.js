@@ -248,3 +248,79 @@ test('Phase 10: Meal logging, updates, deletions, and user-data isolation', () =
   // Clean up
   deleteMealLog(entry2.id, userA)
 })
+
+test('Phase 10: Screenshot regression — multi-food breakfast calculation bugfix', () => {
+  const input = '100 gm overnight soaked oats with honey and 150gm bannana and 5 badam and 5 dry grapes . and 3 boiled eggs'
+  const res = parseMeal(input)
+
+  assert.equal(res.items.length, 6, 'Decomposes into exactly 6 distinct foods')
+  assert.equal(res.all_matched, true, 'All 6 foods matched successfully to verified records')
+
+  // Item 1: Rolled oats (100 gm -> 100 g, NOT 10,000 g)
+  const oats = res.items[0]
+  assert.ok(oats.food_name.toLowerCase().includes('oat'))
+  assert.equal(oats.quantity, 100)
+  assert.equal(oats.unit, 'g')
+  assert.equal(oats.grams, 100)
+  assert.equal(oats.nutrients.energy_kcal, 389)
+
+  // Item 2: Honey (unspecified portion -> 1 tbsp = 21 g, NOT 100 g)
+  const honey = res.items[1]
+  assert.ok(honey.food_name.toLowerCase().includes('honey'))
+  assert.equal(honey.grams, 21)
+  assert.equal(honey.nutrients.energy_kcal, 63.8)
+
+  // Item 3: Banana (150gm with typo bannana -> 150 g, NOT ghost card)
+  const banana = res.items[2]
+  assert.ok(banana.food_name.toLowerCase().includes('banana'))
+  assert.equal(banana.grams, 150)
+  assert.equal(banana.nutrients.energy_kcal, 133.5)
+
+  // Item 4: Badam / almonds (5 pieces -> 6 g, NOT 500 g)
+  const badam = res.items[3]
+  assert.ok(badam.food_name.toLowerCase().includes('almond') || badam.food_name.toLowerCase().includes('badam'))
+  assert.equal(badam.quantity, 5)
+  assert.equal(badam.grams, 6)
+  assert.equal(badam.nutrients.energy_kcal, 34.7)
+
+  // Item 5: Dry grapes / raisins (5 pieces -> 2.5 g, NOT dry arbi 781 g)
+  const raisins = res.items[4]
+  assert.ok(raisins.food_name.toLowerCase().includes('raisin') || raisins.food_name.toLowerCase().includes('dry grape'))
+  assert.equal(raisins.quantity, 5)
+  assert.equal(raisins.grams, 2.5)
+  assert.equal(raisins.nutrients.energy_kcal, 7.5)
+
+  // Item 6: Boiled eggs (3 eggs -> 150 g)
+  const eggs = res.items[5]
+  assert.ok(eggs.food_name.toLowerCase().includes('egg'))
+  assert.equal(eggs.quantity, 3)
+  assert.equal(eggs.grams, 150)
+  assert.equal(eggs.nutrients.energy_kcal, 214.5)
+
+  // Total meal calories MUST be approximately 843 kcal, NOT 19,794.2 kcal
+  assert.ok(res.totals.energy_kcal > 800 && res.totals.energy_kcal < 900, `Expected ~843 kcal, got ${res.totals.energy_kcal} kcal`)
+  assert.ok(res.totals.protein_g > 35 && res.totals.protein_g < 45, `Expected ~39 g protein, got ${res.totals.protein_g} g`)
+})
+
+test('Phase 10: Unit conversions with metric gm and gms aliases', () => {
+  const oats = getFoodById('STAPLE:oats')
+  const portionGm = resolveGrams(oats, 100, 'gm')
+  assert.equal(portionGm.grams, 100, '100 gm resolves to 100 grams')
+
+  const portionGms = resolveGrams(oats, 50, 'gms')
+  assert.equal(portionGms.grams, 50, '50 gms resolves to 50 grams')
+})
+
+test('Phase 10: Invalid quantity rejection and ghost card prevention', () => {
+  // Reject negative or zero quantity
+  const neg = parseMeal('-5 g oats')
+  assert.equal(neg.items[0].matched, false)
+  assert.ok(neg.items[0].error.includes('Invalid food quantity'))
+
+  // Unmatched food should have food_name populated so frontend doesn't render empty ghost card
+  const unknown = parseMeal('100 g xyznonexistentfoodabc')
+  assert.equal(unknown.items[0].matched, false)
+  assert.equal(unknown.items[0].food_name, 'xyznonexistentfoodabc')
+  assert.ok(unknown.items[0].error.includes('Could not find verified food'))
+})
+

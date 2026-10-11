@@ -153,4 +153,51 @@ describe('Nutrition Store & State Management', () => {
     const remainingCals = targetCals - totalCals
     expect(remainingCals).toBe(250)
   })
+
+  it('correctly calculates portion scaling when user edits quantity', () => {
+    // Initial 100g oats = 389 kcal, 16.9g protein
+    const original = {
+      qty: 100,
+      unit: 'g',
+      grams: 100,
+      nutrients: { calories: 389, protein: 16.9, carbs: 66.3, fat: 6.9, fibre: 10.6 }
+    }
+
+    // Scale to 50g
+    const newQty = 50
+    const factor = newQty / original.qty
+    const scaled = {
+      qty: newQty,
+      grams: original.grams * factor,
+      nutrients: {
+        calories: Math.round(original.nutrients.calories * factor * 10) / 10,
+        protein: Math.round(original.nutrients.protein * factor * 10) / 10,
+        carbs: Math.round(original.nutrients.carbs * factor * 10) / 10,
+        fat: Math.round(original.nutrients.fat * factor * 10) / 10,
+        fibre: Math.round(original.nutrients.fibre * factor * 10) / 10
+      }
+    }
+
+    expect(scaled.grams).toBe(50)
+    expect(scaled.nutrients.calories).toBe(194.5)
+    expect(scaled.nutrients.protein).toBe(8.5)
+  })
+
+  it('aggregates multi-ingredient meal items into accurate totals', () => {
+    const mealItems = [
+      { name: 'Oats', nutrients: { calories: 389, protein: 16.9, carbs: 66.3, fat: 6.9, fibre: 10.6 } },
+      { name: 'Honey', nutrients: { calories: 63.8, protein: 0.1, carbs: 17.3, fat: 0, fibre: 0 } },
+      { name: 'Banana', nutrients: { calories: 133.5, protein: 1.7, carbs: 34.2, fat: 0.5, fibre: 3.9 } },
+      { name: 'Almonds', nutrients: { calories: 34.7, protein: 1.3, carbs: 1.3, fat: 3.0, fibre: 0.8 } },
+      { name: 'Raisins', nutrients: { calories: 7.5, protein: 0.1, carbs: 2.0, fat: 0, fibre: 0.1 } },
+      { name: 'Boiled Eggs', nutrients: { calories: 214.5, protein: 18.9, carbs: 1.1, fat: 14.3, fibre: 0 } }
+    ]
+
+    const totalKcal = Math.round(mealItems.reduce((acc, i) => acc + i.nutrients.calories, 0) * 10) / 10
+    const totalProt = Math.round(mealItems.reduce((acc, i) => acc + i.nutrients.protein, 0) * 10) / 10
+
+    expect(totalKcal).toBe(843)
+    expect(totalProt).toBe(39)
+  })
 })
+

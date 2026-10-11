@@ -48,54 +48,105 @@ const STANDARD_UNIT_GRAMS = {
  */
 export function resolveGrams(food, quantity, unit) {
   const q = Number(quantity) || 1;
-  const u = String(unit || 'g').trim().toLowerCase();
+  const rawU = String(unit || '').trim().toLowerCase();
+  const foodName = (food?.name || '').toLowerCase();
+  const canonName = (food?.canonical_name || '').toLowerCase();
 
-  if (u === 'g' || u === 'gram' || u === 'grams') {
+  // 1. Exact metric units
+  if (['g', 'gm', 'gms', 'gram', 'grams'].includes(rawU)) {
     return { grams: q, unit: 'g', assumption: null };
   }
-  if (u === 'kg') {
+  if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(rawU)) {
     return { grams: q * 1000, unit: 'kg', assumption: null };
   }
-  if (u === 'ml') {
+  if (['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'].includes(rawU)) {
     return { grams: q, unit: 'ml', assumption: 'Assumed 1 ml ≈ 1 g' };
   }
-  if (u === 'l' || u === 'liter' || u === 'litre') {
+  if (['l', 'liter', 'litre', 'liters', 'litres'].includes(rawU)) {
     return { grams: q * 1000, unit: 'l', assumption: 'Assumed 1 L ≈ 1000 g' };
   }
 
-  // If unit matches food's serving unit or generic serving/piece:
+  // 2. Query portion units database for food-specific rules
+  const portionRules = [...getPortionUnits(food?.name), ...getPortionUnits(food?.canonical_name)];
+  const specificRules = portionRules.filter(p => p.food_pattern != null);
+  
+  // Try exact unit match in food-specific portion rules
+  if (rawU) {
+    const match = specificRules.find(p => p.unit_name.toLowerCase() === rawU);
+    if (match) {
+      return {
+        grams: q * match.gram_weight,
+        unit: rawU,
+        assumption: `1 ${rawU} = ${match.gram_weight} g (${match.food_pattern})`
+      };
+    }
+  }
+
+  // If unit is piece, count, serving, or unspecified, check for food-specific rules
+  const isCountOrPiece = !rawU || ['piece', 'pieces', 'pc', 'pcs', 'serving', 'servings', 'item', 'items', 'count'].includes(rawU);
+  if (isCountOrPiece) {
+    const servUnit = (food?.serving_unit || '').toLowerCase();
+    const pieceMatch = specificRules.find(p => ['piece', 'serving', 'portion', servUnit].includes(p.unit_name.toLowerCase()));
+    if (pieceMatch) {
+      return {
+        grams: q * pieceMatch.gram_weight,
+        unit: rawU || pieceMatch.unit_name,
+        assumption: `1 ${rawU || pieceMatch.unit_name} = ${pieceMatch.gram_weight} g (${pieceMatch.food_pattern})`
+      };
+    }
+  }
+
+  // 3. Known staple heuristics for items frequently logged by count
+  if (isCountOrPiece) {
+    if (foodName.includes('badam') || canonName.includes('almond')) {
+      return { grams: q * 1.2, unit: 'piece', assumption: '1 almond (badam) ≈ 1.2 g' };
+    }
+    if (foodName.includes('raisin') || canonName.includes('dry grape') || canonName.includes('kishmish')) {
+      return { grams: q * 0.5, unit: 'piece', assumption: '1 raisin (dry grape) ≈ 0.5 g' };
+    }
+    if (foodName.includes('egg') || canonName.includes('egg')) {
+      return { grams: q * 50, unit: 'piece', assumption: '1 whole egg ≈ 50 g' };
+    }
+    if (foodName.includes('banana') || canonName.includes('banana')) {
+      return { grams: q * 120, unit: 'piece', assumption: '1 medium banana ≈ 120 g' };
+    }
+    if (foodName.includes('honey') || canonName.includes('honey')) {
+      return { grams: q * 21, unit: 'tbsp', assumption: '1 serving honey assumed 1 tbsp ≈ 21 g' };
+    }
+    if (foodName.includes('apple') || canonName.includes('apple')) {
+      return { grams: q * 150, unit: 'piece', assumption: '1 medium apple ≈ 150 g' };
+    }
+    if (foodName.includes('roti') || canonName.includes('chapati')) {
+      return { grams: q * 35, unit: 'roti', assumption: '1 standard roti ≈ 35 g' };
+    }
+  }
+
+  // 4. Non-metric serving unit defined on the food record itself
   const servUnit = (food?.serving_unit || '').toLowerCase();
-  const isPieceOrServing = u === 'serving' || u === 'servings' || u === 'piece' || u === 'pieces' || u === servUnit;
-  if (isPieceOrServing && food?.serving_size_g) {
-    return {
-      grams: q * food.serving_size_g,
-      unit: food.serving_unit || u,
-      assumption: `1 ${food.serving_unit || u} = ${food.serving_size_g} g`
-    };
+  const isMetricServUnit = ['g', 'gm', 'gms', 'gram', 'grams', 'ml'].includes(servUnit);
+  if (servUnit && !isMetricServUnit) {
+    if (rawU === servUnit || isCountOrPiece) {
+      return {
+        grams: q * (food.serving_size_g || 100),
+        unit: food.serving_unit,
+        assumption: `1 ${food.serving_unit} = ${food.serving_size_g || 100} g`
+      };
+    }
   }
 
-  // Check food-specific portion units in database
-  const foodName = food?.name || '';
-  const portionRules = getPortionUnits(foodName);
-  const match = portionRules.find(p => p.unit_name.toLowerCase() === u);
-  if (match) {
-    return {
-      grams: q * match.gram_weight,
-      unit: u,
-      assumption: `1 ${u} = ${match.gram_weight} g (${match.food_pattern || 'standard'})`
-    };
-  }
-
-  // Check standard generic unit dictionary
+  // 5. Standard generic household unit dictionary
+  const u = rawU || 'serving';
   if (STANDARD_UNIT_GRAMS[u]) {
     const baseGrams = STANDARD_UNIT_GRAMS[u];
-    // Special cases based on food type:
     let finalGrams = baseGrams;
     let note = `1 ${u} ≈ ${baseGrams} g`;
 
     if (u === 'cup' && /rice|biryani|pulao/i.test(foodName)) {
       finalGrams = 150;
       note = `1 cup cooked rice ≈ 150 g`;
+    } else if (u === 'cup' && /oat|oats|oatmeal/i.test(foodName)) {
+      finalGrams = 80;
+      note = `1 cup dry rolled oats ≈ 80 g`;
     } else if (u === 'cup' && /milk|curd|yogurt|tea|coffee/i.test(foodName)) {
       finalGrams = 240;
       note = `1 cup liquid ≈ 240 g`;
@@ -105,6 +156,12 @@ export function resolveGrams(food, quantity, unit) {
     } else if (/oil|ghee|butter/i.test(foodName) && (u === 'tsp' || u === 'teaspoon')) {
       finalGrams = 4.5;
       note = `1 tsp oil/fat = 4.5 g`;
+    } else if (/honey/i.test(foodName) && (u === 'tbsp' || u === 'tablespoon' || u === 'serving')) {
+      finalGrams = 21;
+      note = `1 tbsp honey = 21 g`;
+    } else if (/honey/i.test(foodName) && (u === 'tsp' || u === 'teaspoon')) {
+      finalGrams = 7;
+      note = `1 tsp honey = 7 g`;
     }
 
     return {
@@ -114,8 +171,8 @@ export function resolveGrams(food, quantity, unit) {
     };
   }
 
-  // Fallback: If unit is unknown, default to food's serving size or 100g
-  const defaultSize = food?.serving_size_g || 100;
+  // 6. Fallback: If unit is unknown or unhandled
+  const defaultSize = (!isMetricServUnit && food?.serving_size_g) ? food.serving_size_g : 100;
   return {
     grams: q * defaultSize,
     unit: u || 'serving',

@@ -138,13 +138,149 @@ export default function Nutrition() {
     setAnalyzing(false)
   }
 
-  // Add parsed item to meal
-  const handleAddParsedToMeal = async () => {
+  // Update parsed item portion dynamically
+  const handleUpdateItemPortion = (idx, newQty) => {
+    const q = Math.max(0, Number(newQty) || 0)
+    setParsedMeal(prev => {
+      if (!prev || !prev.items) return prev
+      const items = [...prev.items]
+      const target = { ...items[idx] }
+      const oldQty = target.quantity || 1
+      const factor = oldQty > 0 ? (q / oldQty) : 1
+      target.quantity = q
+      target.grams = Math.round((target.grams * factor) * 10) / 10
+      if (target.nutrients) {
+        target.nutrients = {
+          energy_kcal: Math.round((target.nutrients.energy_kcal * factor) * 10) / 10,
+          protein_g: Math.round((target.nutrients.protein_g * factor) * 10) / 10,
+          carb_g: Math.round((target.nutrients.carb_g * factor) * 10) / 10,
+          fat_g: Math.round((target.nutrients.fat_g * factor) * 10) / 10,
+          fibre_g: Math.round((target.nutrients.fibre_g * factor) * 10) / 10
+        }
+      }
+      items[idx] = target
+
+      // Recalculate totals
+      const totals = { energy_kcal: 0, protein_g: 0, carb_g: 0, fat_g: 0, fibre_g: 0 }
+      for (const it of items) {
+        if (it.matched && it.nutrients) {
+          totals.energy_kcal += it.nutrients.energy_kcal
+          totals.protein_g += it.nutrients.protein_g
+          totals.carb_g += it.nutrients.carb_g
+          totals.fat_g += it.nutrients.fat_g
+          totals.fibre_g += it.nutrients.fibre_g
+        }
+      }
+      totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10
+      totals.protein_g = Math.round(totals.protein_g * 10) / 10
+      totals.carb_g = Math.round(totals.carb_g * 10) / 10
+      totals.fat_g = Math.round(totals.fat_g * 10) / 10
+      totals.fibre_g = Math.round(totals.fibre_g * 10) / 10
+
+      return { ...prev, items, totals }
+    })
+  }
+
+  // Remove parsed item from meal proposal
+  const handleRemoveParsedItem = (idx) => {
+    setParsedMeal(prev => {
+      if (!prev || !prev.items) return prev
+      const items = prev.items.filter((_, i) => i !== idx)
+      const totals = { energy_kcal: 0, protein_g: 0, carb_g: 0, fat_g: 0, fibre_g: 0 }
+      for (const it of items) {
+        if (it.matched && it.nutrients) {
+          totals.energy_kcal += it.nutrients.energy_kcal
+          totals.protein_g += it.nutrients.protein_g
+          totals.carb_g += it.nutrients.carb_g
+          totals.fat_g += it.nutrients.fat_g
+          totals.fibre_g += it.nutrients.fibre_g
+        }
+      }
+      totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10
+      totals.protein_g = Math.round(totals.protein_g * 10) / 10
+      totals.carb_g = Math.round(totals.carb_g * 10) / 10
+      totals.fat_g = Math.round(totals.fat_g * 10) / 10
+      totals.fibre_g = Math.round(totals.fibre_g * 10) / 10
+      return { ...prev, items, totals, item_count: items.length }
+    })
+  }
+
+  // Replace parsed item with an alternative candidate food
+  const handleSelectAlternative = async (idx, alt) => {
+    try {
+      const res = await api(`/api/nutrition/food?id=${encodeURIComponent(alt.id)}`)
+      if (res.ok && res.food) {
+        const food = res.food
+        setParsedMeal(prev => {
+          if (!prev || !prev.items) return prev
+          const items = [...prev.items]
+          const target = { ...items[idx] }
+          const q = target.quantity || 1
+          const factor = (target.grams || 100) / 100
+          target.matched = true
+          target.food_id = food.id
+          target.food_name = food.name
+          target.tamil_name = food.tamil_name || null
+          target.source = food.source
+          target.error = null
+          target.nutrients = {
+            energy_kcal: Math.round((food.energy_kcal * factor) * 10) / 10,
+            protein_g: Math.round((food.protein_g * factor) * 10) / 10,
+            carb_g: Math.round((food.carb_g * factor) * 10) / 10,
+            fat_g: Math.round((food.fat_g * factor) * 10) / 10,
+            fibre_g: Math.round((food.fibre_g * factor) * 10) / 10
+          }
+          items[idx] = target
+
+          // Recalculate totals
+          const totals = { energy_kcal: 0, protein_g: 0, carb_g: 0, fat_g: 0, fibre_g: 0 }
+          for (const it of items) {
+            if (it.matched && it.nutrients) {
+              totals.energy_kcal += it.nutrients.energy_kcal
+              totals.protein_g += it.nutrients.protein_g
+              totals.carb_g += it.nutrients.carb_g
+              totals.fat_g += it.nutrients.fat_g
+              totals.fibre_g += it.nutrients.fibre_g
+            }
+          }
+          totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10
+          totals.protein_g = Math.round(totals.protein_g * 10) / 10
+          totals.carb_g = Math.round(totals.carb_g * 10) / 10
+          totals.fat_g = Math.round(totals.fat_g * 10) / 10
+          totals.fibre_g = Math.round(totals.fibre_g * 10) / 10
+          return { ...prev, items, totals, all_matched: items.every(i => i.matched) }
+        })
+      }
+    } catch (e) {
+      toast(t('Could not load food details: {0}', e.message))
+    }
+  }
+
+  // Explicit confirmation before adding parsed meal to daily profile
+  const handleConfirmAndAddMeal = () => {
     if (!parsedMeal || !parsedMeal.items?.length) return
+    const matchedItems = parsedMeal.items.filter(i => i.matched)
+    if (!matchedItems.length) {
+      toast(t('No verified food items to log.'))
+      return
+    }
+
+    const mealName = MEAL_TYPES.find(m => m.id === selectedMealType)?.label || selectedMealType
+    confirmSheet({
+      title: t('Log {0} to Daily Profile?', mealName),
+      message: t('Add {0} item(s) totaling {1} kcal, {2}g protein for {3}?', matchedItems.length, parsedMeal.totals?.energy_kcal, parsedMeal.totals?.protein_g, fmtDate(date)),
+      confirmText: t('Confirm & Add Meal'),
+      onConfirm: async () => {
+        await executeAddParsedMeal(matchedItems)
+      }
+    })
+  }
+
+  // Execute add after confirmation
+  const executeAddParsedMeal = async (itemsToLog) => {
     let addedCount = 0
 
-    for (const item of parsedMeal.items) {
-      if (!item.matched) continue
+    for (const item of itemsToLog) {
       const entry = {
         date,
         meal_type: selectedMealType,
@@ -187,7 +323,7 @@ export default function Nutrition() {
       }
     }
 
-    toast(t('Added {0} items to {1}', addedCount, selectedMealType))
+    toast(t('Logged {0} items to {1}', addedCount, selectedMealType))
     setParsedMeal(null)
     setNlInput('')
     loadLogs(date)
@@ -672,29 +808,103 @@ export default function Nutrition() {
               {/* Items Breakdown */}
               <div className="list" style={{ marginBottom: 14 }}>
                 {parsedMeal.items?.map((item, idx) => (
-                  <div key={idx} className="item" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '10px 6px', borderBottom: 'var(--hair) solid var(--sep)' }}>
-                    <div className="row between">
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>{item.food_name}</div>
-                        {item.tamil_name && <div className="muted" style={{ fontSize: 12 }}>({item.tamil_name})</div>}
-                      </div>
-                      <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--acc)' }}>
-                        {item.nutrients?.energy_kcal} kcal
-                      </span>
-                    </div>
+                  <div key={idx} className="item" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '10px 8px', borderBottom: 'var(--hair) solid var(--sep)' }}>
+                    {item.matched ? (
+                      <>
+                        <div className="row between">
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: 15 }}>{item.food_name}</div>
+                            {item.tamil_name && <div className="muted" style={{ fontSize: 12 }}>({item.tamil_name})</div>}
+                          </div>
+                          <div className="row" style={{ gap: 8 }}>
+                            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--acc)' }}>
+                              {item.nutrients?.energy_kcal} kcal
+                            </span>
+                            <button
+                              className="iconbtn"
+                              style={{ width: 24, height: 24, fontSize: 12, color: 'var(--muted)' }}
+                              onClick={() => handleRemoveParsedItem(idx)}
+                              title={t('Remove from meal')}
+                            >
+                              <Icon name="xmark" />
+                            </button>
+                          </div>
+                        </div>
 
-                    <div className="row between" style={{ marginTop: 4, fontSize: 13 }}>
-                      <span className="muted">{item.quantity} {item.unit} ({item.grams}g)</span>
-                      <span className="muted">
-                        P: {item.nutrients?.protein_g}g · C: {item.nutrients?.carb_g}g · F: {item.nutrients?.fat_g}g · Fibre: {item.nutrients?.fibre_g}g
-                      </span>
-                    </div>
+                        {/* Interactive Portion Editor */}
+                        <div className="row between" style={{ marginTop: 6, flexWrap: 'wrap', gap: 6 }}>
+                          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                            <label className="muted small" style={{ fontSize: 12 }}>{t('Portion:')}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.quantity}
+                              onChange={e => handleUpdateItemPortion(idx, e.target.value)}
+                              style={{
+                                width: 56,
+                                padding: '3px 6px',
+                                borderRadius: 6,
+                                border: '1px solid var(--surface-3)',
+                                background: 'var(--surface-2)',
+                                color: 'var(--label)',
+                                fontSize: 13,
+                                textAlign: 'center'
+                              }}
+                            />
+                            <span className="muted small">{item.unit} ({item.grams}g)</span>
+                          </div>
+                          <span className="muted small">
+                            P: {item.nutrients?.protein_g}g · C: {item.nutrients?.carb_g}g · F: {item.nutrients?.fat_g}g · Fib: {item.nutrients?.fibre_g}g
+                          </span>
+                        </div>
 
-                    {/* Clarifications / Assumptions banner */}
-                    {item.clarification && (
-                      <div style={{ marginTop: 6, padding: '6px 10px', background: 'color-mix(in srgb, var(--orange) 16%, transparent)', borderRadius: 6, fontSize: 12, color: 'var(--orange)' }}>
-                        <Icon name="info" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
-                        {item.clarification}
+                        {/* Clarifications / Assumptions banner */}
+                        {item.clarification && (
+                          <div style={{ marginTop: 6, padding: '6px 10px', background: 'color-mix(in srgb, var(--orange) 16%, transparent)', borderRadius: 6, fontSize: 12, color: 'var(--orange)' }}>
+                            <Icon name="info" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                            {item.clarification}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      /* Unmatched Food Card */
+                      <div style={{ padding: '8px 10px', background: 'color-mix(in srgb, var(--red) 12%, transparent)', borderRadius: 8, border: '1px solid color-mix(in srgb, var(--red) 28%, transparent)' }}>
+                        <div className="row between">
+                          <div style={{ fontWeight: 600, color: 'var(--red)', fontSize: 14 }}>
+                            <Icon name="circle-exclamation" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                            {t('Unmatched Food')}: "{item.food_name || item.query}"
+                          </div>
+                          <button
+                            className="iconbtn"
+                            style={{ width: 24, height: 24, fontSize: 12, color: 'var(--red)' }}
+                            onClick={() => handleRemoveParsedItem(idx)}
+                            title={t('Remove unmatched')}
+                          >
+                            <Icon name="xmark" />
+                          </button>
+                        </div>
+                        <div className="muted small" style={{ marginTop: 4 }}>
+                          {item.error || t('Could not find verified food record.')}
+                        </div>
+
+                        {item.alternatives?.length > 0 && (
+                          <div style={{ marginTop: 8 }}>
+                            <span className="small muted" style={{ display: 'block', marginBottom: 4 }}>{t('Suggested alternatives:')}</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {item.alternatives.map((alt, ai) => (
+                                <button
+                                  key={ai}
+                                  className="chip sm nocap"
+                                  style={{ background: 'var(--surface-3)', cursor: 'pointer', fontSize: 11 }}
+                                  onClick={() => handleSelectAlternative(idx, alt)}
+                                >
+                                  + {alt.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -732,8 +942,8 @@ export default function Nutrition() {
               </div>
 
               <div className="row" style={{ gap: 10 }}>
-                <Button variant="primary" icon="check" onClick={handleAddParsedToMeal}>
-                  {t('Add to {0}', MEAL_TYPES.find(m => m.id === selectedMealType)?.label || selectedMealType)}
+                <Button variant="primary" icon="check" onClick={handleConfirmAndAddMeal}>
+                  {t('Review & Add to {0}', MEAL_TYPES.find(m => m.id === selectedMealType)?.label || selectedMealType)}
                 </Button>
                 <Button variant="ghost" onClick={() => setParsedMeal(null)}>
                   {t('Cancel')}
