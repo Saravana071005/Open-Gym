@@ -833,7 +833,12 @@ export default function Nutrition() {
                     <div className="row between" style={{ alignItems: 'flex-start' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                          <span>{item.ingredient_name || item.food_name}</span>
+                          <span>{item.canonical_food_name || item.ingredient_name || item.food_name}</span>
+                          {item.original_text && item.original_text !== (item.canonical_food_name || item.ingredient_name || item.food_name) && (
+                            <span className="muted small" style={{ fontSize: 11, fontStyle: 'italic', fontWeight: 400 }}>
+                              ("{item.original_text}")
+                            </span>
+                          )}
                           {item.prep_state && (
                             <span className="chip sm nocap" style={{ fontSize: 10, background: 'var(--surface-3)', padding: '2px 6px' }}>
                               {item.prep_state}

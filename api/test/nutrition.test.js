@@ -504,3 +504,97 @@ test('OpenAI Direct Analysis: Rejects with configuration error if API key is mis
   }
 })
 
+test('OpenAI Direct Analysis: Exact example — 200gm overnight soaked oats with 5 badam and 5 grapes', async () => {
+  const input = '200gm overnight soaked oats with 5 badam and 5 grapes'
+  const result = await analyzeMealDirectly(input)
+
+  assert.ok(result, 'Result should be returned')
+  // Must NOT be treated as one single food item!
+  assert.equal(result.items.length, 3, 'Must separate into exactly 3 distinct ingredient records')
+
+  // Verify full input sentence is NEVER placed into the canonical food-name field
+  for (const item of result.items) {
+    assert.notEqual(item.canonical_food_name.trim().toLowerCase(), input.trim().toLowerCase())
+    assert.notEqual(item.ingredient_name.trim().toLowerCase(), input.trim().toLowerCase())
+  }
+
+  // 1. Oats — 200 g, with clarification for dry weight versus soaked weight
+  const oats = result.items.find(i => i.canonical_food_name.toLowerCase().includes('oat'))
+  assert.ok(oats, 'Oats must be recognized as its own item')
+  assert.equal(oats.explicit_quantity, 200, 'Must use 200g, not hardcoded 100g')
+  assert.equal(oats.quantity_unit, 'g')
+  assert.equal(oats.estimated_weight_g, 200)
+  assert.equal(oats.is_weight_estimated, false)
+  assert.equal(oats.energy_kcal, 778, '200g dry oats basis must calculate ~778 kcal')
+  assert.ok(oats.assumptions.some(a => a.toLowerCase().includes('soak') || a.toLowerCase().includes('water') || a.toLowerCase().includes('dry')), 'Must document soaking assumptions')
+  assert.ok(oats.clarification_questions.some(q => q.toLowerCase().includes('dry') || q.toLowerCase().includes('soaked')), 'Must clarify dry weight vs soaked wet weight')
+
+  // 2. Almonds — 5 pieces, with editable estimated gram weight
+  const almonds = result.items.find(i => i.canonical_food_name.toLowerCase().includes('almond') || i.canonical_food_name.toLowerCase().includes('badam'))
+  assert.ok(almonds, 'Almonds must be recognized as its own item')
+  assert.equal(almonds.explicit_quantity, 5)
+  assert.equal(almonds.quantity_unit, 'piece')
+  assert.equal(almonds.estimated_weight_g, 6, '5 badam ≈ 6 g')
+  assert.equal(almonds.is_weight_estimated, true, 'Marked as estimated weight')
+  assert.equal(almonds.energy_kcal, 34.7)
+
+  // 3. Grapes — 5 pieces, clarifying fresh grapes versus dried raisins
+  const grapes = result.items.find(i => i.canonical_food_name.toLowerCase().includes('grape'))
+  assert.ok(grapes, 'Grapes must be recognized as its own item')
+  assert.equal(grapes.explicit_quantity, 5)
+  assert.equal(grapes.quantity_unit, 'piece')
+  assert.equal(grapes.estimated_weight_g, 25, '5 fresh grapes ≈ 25 g')
+  assert.equal(grapes.is_weight_estimated, true)
+  assert.equal(grapes.energy_kcal, 17.3)
+  assert.ok(grapes.clarification_questions.some(q => q.toLowerCase().includes('fresh') || q.toLowerCase().includes('raisin') || q.toLowerCase().includes('dried')), 'Must clarify fresh grapes vs dried raisins')
+
+  // Total meal calories must equal sum of the 3 items (778 + 34.7 + 17.3 = 830 kcal)
+  assert.equal(result.totals.energy_kcal, 830)
+  assert.ok(!result.items.some(i => i.canonical_food_name.toLowerCase().includes('carrot')), 'Must never insert carrots')
+})
+
+test('OpenAI Direct Analysis: Quantities affect calculations — 100g vs 200g oats', async () => {
+  const result100 = await analyzeMealDirectly('100 g oats with 5 badam and 5 grapes')
+  const result200 = await analyzeMealDirectly('200 g oats with 5 badam and 5 grapes')
+
+  assert.equal(result100.items.length, 3)
+  assert.equal(result200.items.length, 3)
+
+  const oats100 = result100.items.find(i => i.canonical_food_name.toLowerCase().includes('oat'))
+  const oats200 = result200.items.find(i => i.canonical_food_name.toLowerCase().includes('oat'))
+
+  // Quantities retained
+  assert.equal(oats100.explicit_quantity, 100)
+  assert.equal(oats200.explicit_quantity, 200)
+
+  // Changing quantities changes totals: doubling weight doubles calories
+  assert.equal(oats100.energy_kcal, 389)
+  assert.equal(oats200.energy_kcal, 778)
+  assert.equal(Math.round(oats200.energy_kcal / oats100.energy_kcal), 2, 'Doubling oats weight doubles calories')
+
+  // Meal totals
+  assert.equal(result100.totals.energy_kcal, 441)
+  assert.equal(result200.totals.energy_kcal, 830)
+  assert.equal(result200.totals.energy_kcal - result100.totals.energy_kcal, 389, 'Difference equals extra 100g oats calories')
+})
+
+test('OpenAI Direct Analysis: Rejection of malformed compound sentence items', () => {
+  const compoundItem = {
+    canonical_food_name: '200gm overnight soaked oats with 5 badam and 5 grapes',
+    explicit_quantity: 1,
+    quantity_unit: 'serving',
+    estimated_weight_g: 100,
+    energy_kcal: 150,
+    protein_g: 5,
+    carb_g: 20,
+    fat_g: 5,
+    fibre_g: 2
+  }
+
+  assert.throws(() => {
+    validateNutritionResponse({
+      items: [compoundItem]
+    }, '200gm overnight soaked oats with 5 badam and 5 grapes')
+  }, /Malformed nutrition analysis.*single ingredient/)
+})
+
