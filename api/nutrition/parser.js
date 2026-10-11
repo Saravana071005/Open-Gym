@@ -1,6 +1,6 @@
 import { searchFoods, getFoodById } from './db.js';
 import { resolveGrams, calculateNutrients } from './engine.js';
-import { parseMealWithOpenAI } from './openai.js';
+import { parseMealWithGemini } from './gemini.js';
 
 const WORD_NUMBERS = {
   a: 1,
@@ -351,12 +351,12 @@ export function parseMeal(text) {
 }
 
 /**
- * Asynchronously parses meal input using OpenAI structured output when configured,
+ * Asynchronously parses meal input using Google Gemini structured output when configured,
  * falling back gracefully to local deterministic rule-based parser.
  */
 export async function parseMealAsync(text) {
-  // 1. Attempt OpenAI structured parsing if client configured
-  const aiItems = await parseMealWithOpenAI(text);
+  // 1. Attempt Gemini structured parsing if client configured
+  const aiItems = await parseMealWithGemini(text);
   if (aiItems && Array.isArray(aiItems) && aiItems.length > 0) {
     const items = [];
     const totals = {
@@ -369,18 +369,18 @@ export async function parseMealAsync(text) {
 
     for (const aiItem of aiItems) {
       const parsed = {
-        rawPhrase: aiItem.raw_phrase || aiItem.food_name,
-        coreFoodQuery: aiItem.food_name,
+        rawPhrase: aiItem.originalText || aiItem.raw_phrase || aiItem.foodName || aiItem.food_name,
+        coreFoodQuery: aiItem.foodName || aiItem.food_name,
         quantity: aiItem.quantity,
         hasExplicitQuantity: true,
         unit: aiItem.unit,
-        prepState: aiItem.prep_state || null,
+        prepState: aiItem.preparation || aiItem.prep_state || null,
         ingredients: aiItem.ingredients || []
       };
 
       const calcResult = matchAndCalculate(parsed);
-      if (aiItem.clarification_needed && !calcResult.clarification) {
-        calcResult.clarification = aiItem.clarification_needed;
+      if ((aiItem.clarificationQuestions?.[0] || aiItem.clarification_needed) && !calcResult.clarification) {
+        calcResult.clarification = aiItem.clarificationQuestions?.[0] || aiItem.clarification_needed;
       }
       items.push(calcResult);
 
@@ -405,7 +405,7 @@ export async function parseMealAsync(text) {
       totals,
       item_count: items.length,
       all_matched: items.length > 0 && items.every(i => i.matched),
-      provider: 'openai'
+      provider: 'gemini'
     };
   }
 

@@ -88,10 +88,10 @@ The parser pipeline handles complex, conversational user queries in the followin
 All endpoints are hosted on the Node.js API server (`http://localhost:3000`):
 
 ### 1. `POST /api/nutrition/parse`
-Analyzes a natural-language meal description directly via OpenAI Structured Outputs and returns structured ingredients, portion weights, macronutrient totals, assumptions, and clarifications.
+Analyzes a natural-language meal description directly via Google Gemini API (`@google/genai`) and returns structured ingredients, portion weights, macronutrient totals, assumptions, and clarifications.
 - **Request**:
   ```json
-  { "text": "100gm overnight soaked oats with 5 badam and 5 dry grapes and 150 gm of banana" }
+  { "text": "200 g overnight-soaked oats with 5 almonds and 5 grapes" }
   ```
 - **Response**:
   ```json
@@ -180,7 +180,7 @@ Analyzes a natural-language meal description directly via OpenAI Structured Outp
     "overall_assumptions": ["Standard USDA / ICMR nutrient composition tables applied."],
     "clarifications": ["Portions are editable before saving to your profile."],
     "disclaimer": "Nutritional values are AI-generated clinical estimates based on standard nutritional composition references, not laboratory-verified measurements of your specific preparation. Portions and values are editable before logging.",
-    "provider": "openai"
+    "provider": "gemini"
   }
   ```
 

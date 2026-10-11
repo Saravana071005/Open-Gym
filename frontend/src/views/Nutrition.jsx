@@ -47,6 +47,8 @@ export default function Nutrition() {
   const [analyzing, setAnalyzing] = useState(false)
   const [parsedMeal, setParsedMeal] = useState(null)
   const [selectedMealType, setSelectedMealType] = useState('lunch')
+  const [analysisError, setAnalysisError] = useState(null)
+  const [isQuotaError, setIsQuotaError] = useState(false)
 
   // Load targets
   useEffect(() => {
@@ -118,24 +120,40 @@ export default function Nutrition() {
     setDate(curr.toISOString().slice(0, 10))
   }
 
-  // Handle Natural Language parse
+  // Handle Natural Language parse with Gemini
   const handleAnalyzeMeal = async () => {
-    if (!nlInput.trim()) return
+    const trimmed = nlInput.trim()
+    if (!trimmed) {
+      setAnalysisError(t('Please enter a food description first.'))
+      toast(t('Please enter a food description first.'))
+      return
+    }
     setAnalyzing(true)
+    setAnalysisError(null)
+    setIsQuotaError(false)
     try {
       const res = await api('/api/nutrition/parse', {
         method: 'POST',
-        body: JSON.stringify({ text: nlInput })
+        body: JSON.stringify({ text: trimmed })
       })
       if (res.ok) {
         setParsedMeal(res)
+        setAnalysisError(null)
+        setIsQuotaError(false)
       } else {
-        toast(res.error || t('Could not analyze meal description'))
+        const errMsg = res.error || t('Could not analyze meal description')
+        setAnalysisError(errMsg)
+        setIsQuotaError(!!res.isQuota || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('rate limit'))
+        toast(errMsg)
       }
     } catch (e) {
-      toast(t('Error parsing food: {0}', e.message))
+      const errMsg = e.message || t('Error communicating with nutrition service')
+      setAnalysisError(errMsg)
+      setIsQuotaError(errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('rate limit'))
+      toast(errMsg)
+    } finally {
+      setAnalyzing(false)
     }
-    setAnalyzing(false)
   }
 
   // Update parsed item portion dynamically
@@ -145,51 +163,75 @@ export default function Nutrition() {
       if (!prev || !prev.items) return prev
       const items = [...prev.items]
       const target = { ...items[idx] }
-      const oldQty = target.explicit_quantity ?? target.quantity ?? 1
+      const oldQty = target.quantity ?? target.explicit_quantity ?? 1
       const factor = oldQty > 0 ? (q / oldQty) : 1
-      target.explicit_quantity = q
       target.quantity = q
-      const baseWeight = target.estimated_weight_g ?? target.grams ?? 100
-      target.estimated_weight_g = Math.round((baseWeight * factor) * 10) / 10
-      target.grams = target.estimated_weight_g
+      target.explicit_quantity = q
 
-      const baseKcal = target.energy_kcal ?? target.nutrients?.energy_kcal ?? 0
-      const baseProt = target.protein_g ?? target.nutrients?.protein_g ?? 0
-      const baseCarb = target.carb_g ?? target.nutrients?.carb_g ?? 0
-      const baseFat = target.fat_g ?? target.nutrients?.fat_g ?? 0
-      const baseFib = target.fibre_g ?? target.nutrients?.fibre_g ?? 0
+      const baseWeight = target.estimatedGrams ?? target.estimated_weight_g ?? target.grams ?? 100
+      target.estimatedGrams = Math.round((baseWeight * factor) * 10) / 10
+      target.estimated_weight_g = target.estimatedGrams
+      target.grams = target.estimatedGrams
 
-      target.energy_kcal = Math.round((baseKcal * factor) * 10) / 10
-      target.protein_g = Math.round((baseProt * factor) * 10) / 10
-      target.carb_g = Math.round((baseCarb * factor) * 10) / 10
-      target.fat_g = Math.round((baseFat * factor) * 10) / 10
-      target.fibre_g = Math.round((baseFib * factor) * 10) / 10
+      const baseKcal = target.calories ?? target.energy_kcal ?? target.nutrients?.energy_kcal ?? 0
+      const baseProt = target.protein ?? target.protein_g ?? target.nutrients?.protein_g ?? 0
+      const baseCarb = target.carbohydrates ?? target.carb_g ?? target.nutrients?.carb_g ?? 0
+      const baseFat = target.fat ?? target.fat_g ?? target.nutrients?.fat_g ?? 0
+      const baseFib = target.fibre ?? target.fibre_g ?? target.nutrients?.fibre_g ?? 0
+
+      target.calories = Math.round((baseKcal * factor) * 10) / 10
+      target.energy_kcal = target.calories
+      target.protein = Math.round((baseProt * factor) * 10) / 10
+      target.protein_g = target.protein
+      target.carbohydrates = Math.round((baseCarb * factor) * 10) / 10
+      target.carb_g = target.carbohydrates
+      target.fat = Math.round((baseFat * factor) * 10) / 10
+      target.fat_g = target.fat
+      target.fibre = Math.round((baseFib * factor) * 10) / 10
+      target.fibre_g = target.fibre
 
       if (target.nutrients) {
         target.nutrients = {
-          energy_kcal: target.energy_kcal,
-          protein_g: target.protein_g,
-          carb_g: target.carb_g,
-          fat_g: target.fat_g,
-          fibre_g: target.fibre_g
+          energy_kcal: target.calories,
+          protein_g: target.protein,
+          carb_g: target.carbohydrates,
+          fat_g: target.fat,
+          fibre_g: target.fibre
         }
       }
       items[idx] = target
 
       // Recalculate totals directly as sum of all items
-      const totals = { energy_kcal: 0, protein_g: 0, carb_g: 0, fat_g: 0, fibre_g: 0 }
-      for (const it of items) {
-        totals.energy_kcal += (it.energy_kcal ?? it.nutrients?.energy_kcal ?? 0)
-        totals.protein_g += (it.protein_g ?? it.nutrients?.protein_g ?? 0)
-        totals.carb_g += (it.carb_g ?? it.nutrients?.carb_g ?? 0)
-        totals.fat_g += (it.fat_g ?? it.nutrients?.fat_g ?? 0)
-        totals.fibre_g += (it.fibre_g ?? it.nutrients?.fibre_g ?? 0)
+      const totals = {
+        calories: 0,
+        protein: 0,
+        carbohydrates: 0,
+        fat: 0,
+        fibre: 0,
+        energy_kcal: 0,
+        protein_g: 0,
+        carb_g: 0,
+        fat_g: 0,
+        fibre_g: 0
       }
-      totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10
-      totals.protein_g = Math.round(totals.protein_g * 10) / 10
-      totals.carb_g = Math.round(totals.carb_g * 10) / 10
-      totals.fat_g = Math.round(totals.fat_g * 10) / 10
-      totals.fibre_g = Math.round(totals.fibre_g * 10) / 10
+      for (const it of items) {
+        totals.calories += (it.calories ?? it.energy_kcal ?? 0)
+        totals.protein += (it.protein ?? it.protein_g ?? 0)
+        totals.carbohydrates += (it.carbohydrates ?? it.carb_g ?? 0)
+        totals.fat += (it.fat ?? it.fat_g ?? 0)
+        totals.fibre += (it.fibre ?? it.fibre_g ?? 0)
+      }
+      totals.calories = Math.round(totals.calories * 10) / 10
+      totals.protein = Math.round(totals.protein * 10) / 10
+      totals.carbohydrates = Math.round(totals.carbohydrates * 10) / 10
+      totals.fat = Math.round(totals.fat * 10) / 10
+      totals.fibre = Math.round(totals.fibre * 10) / 10
+
+      totals.energy_kcal = totals.calories
+      totals.protein_g = totals.protein
+      totals.carb_g = totals.carbohydrates
+      totals.fat_g = totals.fat
+      totals.fibre_g = totals.fibre
 
       return { ...prev, items, totals }
     })
@@ -737,20 +779,25 @@ export default function Nutrition() {
                 </span>
                 <span style={{ fontWeight: 600, fontSize: 17 }}>{t('AI Meal Calculator')}</span>
               </div>
-              <span className="chip sm nocap" style={{ background: 'var(--surface-2)', fontSize: 11, color: 'var(--purple)' }}>
-                {t('AI Estimates')}
+              <span className="chip sm nocap" style={{ background: 'var(--surface-2)', fontSize: 11, color: 'var(--purple)', fontWeight: 600 }}>
+                <Icon name="sparkles" style={{ marginRight: 4 }} />
+                {t('AI Estimated Nutrition')}
               </span>
             </div>
             <p className="muted small" style={{ marginBottom: 12 }}>
-              {t('Describe your meal, ingredients, or recipes. The AI analyzes each item into structured ingredients with clinical nutritional estimates that you can review and edit.')}
+              {t('Describe your meal, ingredients, or recipes. Powered by Google Gemini AI to analyze each food into separate items with clinical nutritional estimates you can review and edit.')}
             </p>
 
             {/* Input Text Area */}
             <textarea
               rows={3}
-              placeholder={t('e.g. 100gm overnight soaked oats with 5 badam and 5 dry grapes and 150 gm of banana\nor: 2 wheat roti with chicken gravy')}
+              placeholder={t('e.g. 200 g overnight-soaked oats with 5 almonds and 5 grapes\nor: 2 idlis with sambar\nor: 100 g cooked rice with 150 g chicken breast')}
               value={nlInput}
-              onChange={e => setNlInput(e.target.value)}
+              disabled={analyzing}
+              onChange={e => {
+                setNlInput(e.target.value)
+                if (analysisError) setAnalysisError(null)
+              }}
               style={{
                 width: '100%',
                 padding: '12px 14px',
@@ -771,7 +818,11 @@ export default function Nutrition() {
                 <button
                   key={i}
                   className="chip sm nocap"
-                  onClick={() => setNlInput(ex)}
+                  disabled={analyzing}
+                  onClick={() => {
+                    setNlInput(ex)
+                    if (analysisError) setAnalysisError(null)
+                  }}
                   style={{ background: 'var(--surface-2)', cursor: 'pointer', fontSize: 12 }}
                 >
                   {ex}
@@ -781,20 +832,70 @@ export default function Nutrition() {
 
             <Button
               variant="primary"
-              icon="sparkles"
+              icon={analyzing ? "spinner" : "sparkles"}
               disabled={!nlInput.trim() || analyzing}
               onClick={handleAnalyzeMeal}
             >
-              {analyzing ? t('Analyzing meal with AI...') : t('Calculate Nutrition')}
+              {analyzing ? t('Analyzing meal with Gemini AI...') : t('Calculate Nutrition')}
             </Button>
+
+            {/* Error / Quota Alert & Retry State */}
+            {analysisError && (
+              <div
+                className="card"
+                style={{
+                  marginTop: 12,
+                  marginBottom: 0,
+                  border: isQuotaError ? '1px solid var(--orange)' : '1px solid var(--red)',
+                  background: isQuotaError ? 'color-mix(in srgb, var(--orange) 10%, var(--surface-1))' : 'color-mix(in srgb, var(--red) 10%, var(--surface-1))',
+                  padding: '12px 14px',
+                  animation: 'slideup 0.2s ease'
+                }}
+              >
+                <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                  <Icon
+                    name={isQuotaError ? "triangle-exclamation" : "circle-exclamation"}
+                    style={{ fontSize: 18, color: isQuotaError ? 'var(--orange)' : 'var(--red)', marginTop: 2 }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: isQuotaError ? 'var(--orange)' : 'var(--red)', marginBottom: 4 }}>
+                      {isQuotaError ? t('Gemini Quota Exceeded') : t('Calculation Error')}
+                    </div>
+                    <div className="small" style={{ color: 'var(--label)', lineHeight: 1.4, marginBottom: 10 }}>
+                      {analysisError}
+                    </div>
+                    <Button
+                      variant="secondary"
+                      icon="arrow-rotate-right"
+                      onClick={handleAnalyzeMeal}
+                      disabled={analyzing || !nlInput.trim()}
+                      style={{ fontSize: 13, padding: '4px 10px' }}
+                    >
+                      {isQuotaError ? t('Retry') : t('Retry Calculation')}
+                    </Button>
+                  </div>
+                  <button
+                    className="iconbtn"
+                    style={{ width: 22, height: 22, fontSize: 11 }}
+                    onClick={() => { setAnalysisError(null); setIsQuotaError(false); }}
+                  >
+                    <Icon name="xmark" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Parsed AI Analysis Panel */}
           {parsedMeal && (
             <div className="card" style={{ border: '1px solid var(--acc)', animation: 'slideup 0.2s ease' }}>
               <div className="row between" style={{ marginBottom: 8, alignItems: 'center' }}>
-                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontWeight: 600, fontSize: 16 }}>{t('AI Nutrition Analysis')}</span>
+                <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, fontSize: 16 }}>{t('AI Estimated Nutrition')}</span>
+                  <span className="chip sm nocap" style={{ background: 'color-mix(in srgb, var(--purple) 18%, transparent)', color: 'var(--purple)', fontSize: 11, fontWeight: 600 }}>
+                    <Icon name="sparkles" style={{ marginRight: 4 }} />
+                    {t('Google Gemini')}
+                  </span>
                   {parsedMeal.calculation_status === 'complete' && (
                     <span className="chip sm" style={{ background: 'color-mix(in srgb, var(--green) 18%, transparent)', color: 'var(--green)', fontSize: 11 }}>
                       {t('Complete')}
@@ -833,15 +934,15 @@ export default function Nutrition() {
                     <div className="row between" style={{ alignItems: 'flex-start' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                          <span>{item.canonical_food_name || item.ingredient_name || item.food_name}</span>
-                          {item.original_text && item.original_text !== (item.canonical_food_name || item.ingredient_name || item.food_name) && (
+                          <span>{item.foodName || item.canonical_food_name || item.ingredient_name || item.food_name}</span>
+                          {(item.originalText || item.original_text) && (item.originalText || item.original_text) !== (item.foodName || item.canonical_food_name || item.ingredient_name || item.food_name) && (
                             <span className="muted small" style={{ fontSize: 11, fontStyle: 'italic', fontWeight: 400 }}>
-                              ("{item.original_text}")
+                              ("{item.originalText || item.original_text}")
                             </span>
                           )}
-                          {item.prep_state && (
+                          {(item.preparation || item.prep_state) && (
                             <span className="chip sm nocap" style={{ fontSize: 10, background: 'var(--surface-3)', padding: '2px 6px' }}>
-                              {item.prep_state}
+                              {item.preparation || item.prep_state}
                             </span>
                           )}
                           {item.is_weight_estimated ? (
@@ -941,13 +1042,13 @@ export default function Nutrition() {
               <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10, marginBottom: 12 }}>
                 <div className="row between" style={{ fontWeight: 700, fontSize: 17, marginBottom: 4 }}>
                   <span>{t('Total Meal Nutrition')}</span>
-                  <span className="accent">{parsedMeal.totals?.energy_kcal} kcal</span>
+                  <span className="accent">{parsedMeal.totals?.calories ?? parsedMeal.totals?.energy_kcal} kcal</span>
                 </div>
                 <div className="muted small row between" style={{ flexWrap: 'wrap', gap: 8 }}>
-                  <span>{t('Protein: {0}g', parsedMeal.totals?.protein_g)}</span>
-                  <span>{t('Carbs: {0}g', parsedMeal.totals?.carb_g)}</span>
-                  <span>{t('Fat: {0}g', parsedMeal.totals?.fat_g)}</span>
-                  <span>{t('Fibre: {0}g', parsedMeal.totals?.fibre_g)}</span>
+                  <span>{t('Protein: {0}g', parsedMeal.totals?.protein ?? parsedMeal.totals?.protein_g)}</span>
+                  <span>{t('Carbs: {0}g', parsedMeal.totals?.carbohydrates ?? parsedMeal.totals?.carb_g)}</span>
+                  <span>{t('Fat: {0}g', parsedMeal.totals?.fat ?? parsedMeal.totals?.fat_g)}</span>
+                  <span>{t('Fibre: {0}g', parsedMeal.totals?.fibre ?? parsedMeal.totals?.fibre_g)}</span>
                 </div>
                 {parsedMeal.reconciliation_notes && (
                   <div className="muted small" style={{ marginTop: 8, fontSize: 11, borderTop: 'var(--hair) solid var(--sep)', paddingTop: 6 }}>

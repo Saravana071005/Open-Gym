@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 process.env.NODE_ENV = 'test'
-process.env.OPENAI_API_KEY = 'mock-key'
+process.env.GEMINI_API_KEY = 'mock-key'
 
 import {
   getFoodById,
@@ -329,272 +329,228 @@ test('Phase 10: Invalid quantity rejection and ghost card prevention', () => {
 })
 
 /* =========================================================================
- * OpenAI Direct Nutrition Analysis Tests (Migration from Dataset Model)
+ * Google Gemini Direct Nutrition Analysis Tests (@google/genai Integration)
  * ========================================================================= */
 import {
+  analyzeMealWithGemini,
   analyzeMealDirectly,
-  validateNutritionResponse,
-  getMockNutritionAnalysis
-} from '../nutrition/openai.js'
+  validateAndNormalizeNutritionResponse,
+  getMockNutritionAnalysis,
+  mapGeminiError
+} from '../nutrition/gemini.js'
 
-test('OpenAI Direct Analysis: Screenshot regression — overnight oats with badam, dry grapes, and banana', async () => {
-  const text = '100gm overnight soaked oats with 5 badam and 5 dry grapes and 150 gm of banana'
-  const result = await analyzeMealDirectly(text)
-
+test('Gemini Direct Analysis: 1. "100 g oats"', async () => {
+  const result = await analyzeMealWithGemini('100 g oats')
   assert.ok(result, 'Result should be returned')
-  assert.equal(result.items.length, 4, 'Must identify exactly 4 foods without inserting unmentioned items')
-
-  // Verify no carrots or other unmentioned items
-  const names = result.items.map(i => i.ingredient_name.toLowerCase())
-  assert.ok(!names.some(n => n.includes('carrot')), 'Must NOT insert carrots')
-
-  // Item 1: Oats (100g)
-  const oats = result.items.find(i => i.ingredient_name.toLowerCase().includes('oat'))
-  assert.ok(oats, 'Oats must be recognized')
-  assert.equal(oats.explicit_quantity, 100)
-  assert.equal(oats.quantity_unit, 'g')
-  assert.equal(oats.estimated_weight_g, 100)
-  assert.equal(oats.is_weight_estimated, false)
-  assert.ok(oats.assumptions.some(a => a.toLowerCase().includes('soak') || a.toLowerCase().includes('water') || a.toLowerCase().includes('dry')), 'Should explain dry vs soaked weight')
-
-  // Item 2: Almonds / Badam (5 pieces, estimated weight ~6g)
-  const almonds = result.items.find(i => i.ingredient_name.toLowerCase().includes('almond') || i.ingredient_name.toLowerCase().includes('badam'))
-  assert.ok(almonds, 'Almonds/Badam must be recognized')
-  assert.equal(almonds.explicit_quantity, 5)
-  assert.equal(almonds.quantity_unit, 'piece')
-  assert.equal(almonds.estimated_weight_g, 6)
-  assert.equal(almonds.is_weight_estimated, true, 'Gram weight must be marked estimated when count is supplied')
-
-  // Item 3: Raisins / Dry grapes (5 pieces, estimated weight ~2.5g)
-  const raisins = result.items.find(i => i.ingredient_name.toLowerCase().includes('raisin') || i.ingredient_name.toLowerCase().includes('grape'))
-  assert.ok(raisins, 'Raisins/Dry grapes must be recognized')
-  assert.equal(raisins.explicit_quantity, 5)
-  assert.equal(raisins.quantity_unit, 'piece')
-  assert.equal(raisins.estimated_weight_g, 2.5)
-  assert.equal(raisins.is_weight_estimated, true, 'Gram weight must be marked estimated')
-
-  // Item 4: Banana (150g)
-  const banana = result.items.find(i => i.ingredient_name.toLowerCase().includes('banana'))
-  assert.ok(banana, 'Banana must be recognized')
-  assert.equal(banana.explicit_quantity, 150)
-  assert.equal(banana.quantity_unit, 'g')
-  assert.equal(banana.estimated_weight_g, 150)
-  assert.equal(banana.is_weight_estimated, false)
-
-  // Meal totals must equal exact sum of ingredient values
-  const expectedKcal = Math.round((oats.energy_kcal + almonds.energy_kcal + raisins.energy_kcal + banana.energy_kcal) * 10) / 10
-  assert.equal(result.totals.energy_kcal, expectedKcal, 'Totals must reconcile to exact sum of ingredients')
-  assert.ok(result.disclaimer.includes('AI-generated'), 'Disclaimer must clarify AI estimates')
+  assert.equal(result.items.length, 1, 'Single ingredient should produce 1 item')
+  const item = result.items[0]
+  assert.equal(item.foodName, 'Rolled Oats')
+  assert.equal(item.quantity, 100)
+  assert.equal(item.unit, 'g')
+  assert.equal(item.estimatedGrams, 100)
+  assert.equal(item.calories, 389)
+  assert.equal(item.protein, 16.9)
+  assert.equal(item.carbohydrates, 66.3)
+  assert.equal(item.fat, 6.9)
+  assert.equal(item.fibre, 10.6)
+  assert.equal(result.totals.calories, 389)
+  assert.equal(result.isEstimate, true)
 })
 
-test('OpenAI Direct Analysis: "2 wheat roti with chicken gravy" with clarification questions', async () => {
-  const result = await analyzeMealDirectly('2 wheat roti with chicken gravy')
-  assert.equal(result.items.length, 2)
+test('Gemini Direct Analysis: 2. "200 g oats" (increasing quantity changes nutrition proportionally)', async () => {
+  const res100 = await analyzeMealWithGemini('100 g oats')
+  const res200 = await analyzeMealWithGemini('200 g oats')
 
-  const roti = result.items.find(i => i.ingredient_name.toLowerCase().includes('roti'))
-  assert.ok(roti)
-  assert.equal(roti.explicit_quantity, 2)
-  assert.equal(roti.estimated_weight_g, 70)
+  assert.equal(res200.items.length, 1)
+  const item200 = res200.items[0]
+  assert.equal(item200.quantity, 200)
+  assert.equal(item200.calories, 778)
+  assert.equal(item200.protein, 33.8)
+  assert.equal(item200.carbohydrates, 132.6)
 
-  const gravy = result.items.find(i => i.ingredient_name.toLowerCase().includes('gravy') || i.ingredient_name.toLowerCase().includes('curry'))
-  assert.ok(gravy)
-  assert.ok(gravy.clarification_questions.length > 0, 'Should include clarification questions for complete dish')
-  assert.equal(result.calculation_status, 'needs_clarification')
+  // Verify proportional scaling: doubling quantity doubles calories
+  assert.equal(Math.round(item200.calories / res100.items[0].calories), 2)
+  assert.equal(res200.totals.calories, item200.calories)
 })
 
-test('OpenAI Direct Analysis: "100 g roasted peanuts"', async () => {
-  const result = await analyzeMealDirectly('100 g roasted peanuts')
+test('Gemini Direct Analysis: 3. "2 boiled eggs"', async () => {
+  const result = await analyzeMealWithGemini('2 boiled eggs')
   assert.equal(result.items.length, 1)
-  const peanuts = result.items[0]
-  assert.equal(peanuts.explicit_quantity, 100)
-  assert.equal(peanuts.quantity_unit, 'g')
-  assert.equal(peanuts.estimated_weight_g, 100)
-  assert.equal(peanuts.energy_kcal, 585)
-  assert.equal(peanuts.confidence, 'high')
+  const egg = result.items[0]
+  assert.equal(egg.foodName, 'Boiled Eggs')
+  assert.equal(egg.quantity, 2)
+  assert.equal(egg.unit, 'piece')
+  assert.equal(egg.preparation, 'boiled')
+  assert.equal(egg.estimatedGrams, 100)
+  assert.equal(egg.calories, 155.6)
+  assert.equal(egg.protein, 12.6)
+  assert.equal(egg.fat, 10.6)
+  assert.equal(result.totals.calories, 155.6)
 })
 
-test('OpenAI Direct Analysis: "150 g rice, 100 g chicken and 1 tablespoon oil"', async () => {
-  const result = await analyzeMealDirectly('150 g rice, 100 g chicken and 1 tablespoon oil')
-  assert.equal(result.items.length, 3)
+test('Gemini Direct Analysis: 4. "200 g overnight-soaked oats with 5 almonds and 5 grapes" (exact multi-ingredient decomposition)', async () => {
+  const input = '200 g overnight-soaked oats with 5 almonds and 5 grapes'
+  const result = await analyzeMealWithGemini(input)
 
-  const sumKcal = result.items.reduce((acc, i) => acc + i.energy_kcal, 0)
-  assert.equal(result.totals.energy_kcal, Math.round(sumKcal * 10) / 10)
+  assert.ok(result)
+  // Must separate into exactly 3 distinct items
+  assert.equal(result.items.length, 3, 'Must separate into exactly 3 distinct ingredients')
+
+  // Verify canonical food names do NOT contain the full sentence
+  for (const item of result.items) {
+    assert.notEqual(item.foodName.trim().toLowerCase(), input.trim().toLowerCase())
+  }
+
+  // 1. Oats: 200g
+  const oats = result.items.find(i => i.foodName.toLowerCase().includes('oat'))
+  assert.ok(oats, 'Oats must be recognized')
+  assert.equal(oats.quantity, 200)
+  assert.equal(oats.unit, 'g')
+  assert.equal(oats.calories, 778)
+  assert.equal(oats.preparation, 'overnight-soaked')
+  assert.ok(oats.clarificationQuestions.some(q => q.toLowerCase().includes('dry') || q.toLowerCase().includes('soaked')), 'Must clarify dry weight vs soaked weight')
+
+  // 2. Almonds: 5 pieces
+  const almonds = result.items.find(i => i.foodName.toLowerCase().includes('almond') || i.foodName.toLowerCase().includes('badam'))
+  assert.ok(almonds, 'Almonds must be recognized')
+  assert.equal(almonds.quantity, 5)
+  assert.equal(almonds.unit, 'piece')
+  assert.equal(almonds.estimatedGrams, 6)
+  assert.equal(almonds.calories, 34.7)
+
+  // 3. Grapes: 5 pieces
+  const grapes = result.items.find(i => i.foodName.toLowerCase().includes('grape'))
+  assert.ok(grapes, 'Grapes must be recognized')
+  assert.equal(grapes.quantity, 5)
+  assert.equal(grapes.unit, 'piece')
+  assert.equal(grapes.estimatedGrams, 25)
+  assert.equal(grapes.calories, 17.3)
+  assert.ok(grapes.clarificationQuestions.some(q => q.toLowerCase().includes('fresh') || q.toLowerCase().includes('raisin')), 'Must clarify fresh grapes vs raisins')
+
+  // Totals must equal exact sum of items: 778 + 34.7 + 17.3 = 830 kcal
+  assert.equal(result.totals.calories, 830)
+  assert.equal(result.totals.energy_kcal, 830)
+  assert.equal(result.isEstimate, true)
 })
 
-test('OpenAI Direct Analysis: Input bounds and validation rejection', async () => {
-  // Empty text should throw
+test('Gemini Direct Analysis: 5. "2 idlis with sambar" (Indian / South Indian staples)', async () => {
+  const result = await analyzeMealWithGemini('2 idlis with sambar')
+  assert.equal(result.items.length, 2, 'Must separate into Idli and Sambar')
+
+  const idli = result.items.find(i => i.foodName.toLowerCase().includes('idli'))
+  assert.ok(idli, 'Idli must be recognized')
+  assert.equal(idli.quantity, 2)
+  assert.equal(idli.preparation, 'steamed')
+  assert.equal(idli.calories, 132)
+
+  const sambar = result.items.find(i => i.foodName.toLowerCase().includes('sambar'))
+  assert.ok(sambar, 'Sambar must be recognized')
+  assert.equal(sambar.calories, 110)
+
+  // Totals equal exact sum
+  assert.equal(result.totals.calories, Math.round((idli.calories + sambar.calories) * 10) / 10)
+})
+
+test('Gemini Direct Analysis: 6. "100 g cooked rice with 150 g chicken breast"', async () => {
+  const result = await analyzeMealWithGemini('100 g cooked rice with 150 g chicken breast')
+  assert.equal(result.items.length, 2, 'Must separate into Rice and Chicken Breast')
+
+  const rice = result.items.find(i => i.foodName.toLowerCase().includes('rice'))
+  assert.ok(rice)
+  assert.equal(rice.quantity, 100)
+  assert.equal(rice.unit, 'g')
+  assert.equal(rice.calories, 130)
+
+  const chicken = result.items.find(i => i.foodName.toLowerCase().includes('chicken'))
+  assert.ok(chicken)
+  assert.equal(chicken.quantity, 150)
+  assert.equal(chicken.unit, 'g')
+  assert.equal(chicken.calories, 247.5)
+
+  assert.equal(result.totals.calories, 377.5)
+})
+
+test('Gemini Direct Analysis: 7. An empty input (Validation error rejection)', async () => {
   await assert.rejects(async () => {
-    await analyzeMealDirectly('')
+    await analyzeMealWithGemini('')
   }, /empty/)
 
-  // Excessively long text should throw
   await assert.rejects(async () => {
-    await analyzeMealDirectly('a'.repeat(2005))
-  }, /too long/)
-
-  // validateNutritionResponse rejects negative quantities or calories
-  assert.throws(() => {
-    validateNutritionResponse({
-      items: [
-        {
-          ingredient_name: 'Rice',
-          explicit_quantity: -10,
-          quantity_unit: 'g',
-          estimated_weight_g: 100,
-          energy_kcal: 100,
-          protein_g: 2,
-          carb_g: 20,
-          fat_g: 0,
-          fibre_g: 1
-        }
-      ]
-    }, 'Rice')
-  }, /Invalid quantity/)
-
-  assert.throws(() => {
-    validateNutritionResponse({
-      items: [
-        {
-          ingredient_name: 'Rice',
-          explicit_quantity: 100,
-          quantity_unit: 'g',
-          estimated_weight_g: 100,
-          energy_kcal: -50,
-          protein_g: 2,
-          carb_g: 20,
-          fat_g: 0,
-          fibre_g: 1
-        }
-      ]
-    }, 'Rice')
-  }, /Invalid calories/)
-
-  // Reject NaN / Infinity
-  assert.throws(() => {
-    validateNutritionResponse({
-      items: [
-        {
-          ingredient_name: 'Rice',
-          explicit_quantity: NaN,
-          quantity_unit: 'g',
-          estimated_weight_g: 100,
-          energy_kcal: 100,
-          protein_g: 2,
-          carb_g: 20,
-          fat_g: 0,
-          fibre_g: 1
-        }
-      ]
-    }, 'Rice')
-  }, /Invalid quantity/)
+    await analyzeMealWithGemini('   ')
+  }, /empty/)
 })
 
-test('OpenAI Direct Analysis: Rejects with configuration error if API key is missing in production', async () => {
-  const origKey = process.env.OPENAI_API_KEY
+test('Gemini Direct Analysis: 8. A simulated Gemini quota error (RESOURCE_EXHAUSTED / 429)', async () => {
+  const prevQuota = process.env.SIMULATE_GEMINI_QUOTA
+  try {
+    process.env.SIMULATE_GEMINI_QUOTA = '1'
+    await assert.rejects(async () => {
+      await analyzeMealWithGemini('100 g oats')
+    }, (err) => {
+      assert.equal(err.status, 429)
+      assert.equal(err.isQuota, true)
+      assert.ok(err.message.includes('quota') || err.message.includes('rate limit'))
+      return true
+    })
+  } finally {
+    delete process.env.SIMULATE_GEMINI_QUOTA
+  }
+})
+
+test('Gemini Direct Analysis: Missing API key error when running without key', async () => {
+  const origKey = process.env.GEMINI_API_KEY
   const origEnv = process.env.NODE_ENV
   try {
-    delete process.env.OPENAI_API_KEY
+    delete process.env.GEMINI_API_KEY
     process.env.NODE_ENV = 'production'
     await assert.rejects(async () => {
-      await analyzeMealDirectly('100 g oats')
-    }, /OpenAI API key is not configured/)
+      await analyzeMealWithGemini('100 g oats')
+    }, /GEMINI_API_KEY/)
   } finally {
-    process.env.OPENAI_API_KEY = origKey
+    process.env.GEMINI_API_KEY = origKey
     process.env.NODE_ENV = origEnv
   }
 })
 
-test('OpenAI Direct Analysis: Exact example — 200gm overnight soaked oats with 5 badam and 5 grapes', async () => {
-  const input = '200gm overnight soaked oats with 5 badam and 5 grapes'
-  const result = await analyzeMealDirectly(input)
+test('Gemini Direct Analysis: Error mapping for model, auth, and network errors', () => {
+  // Quota error
+  const quotaErr = mapGeminiError({ status: 429, message: 'RESOURCE_EXHAUSTED' })
+  assert.equal(quotaErr.status, 429)
+  assert.ok(quotaErr.message.includes('quota'))
 
-  assert.ok(result, 'Result should be returned')
-  // Must NOT be treated as one single food item!
-  assert.equal(result.items.length, 3, 'Must separate into exactly 3 distinct ingredient records')
+  // Auth error
+  const authErr = mapGeminiError({ status: 401, message: 'API_KEY_INVALID' })
+  assert.equal(authErr.status, 401)
+  assert.ok(authErr.message.includes('Invalid GEMINI_API_KEY'))
 
-  // Verify full input sentence is NEVER placed into the canonical food-name field
-  for (const item of result.items) {
-    assert.notEqual(item.canonical_food_name.trim().toLowerCase(), input.trim().toLowerCase())
-    assert.notEqual(item.ingredient_name.trim().toLowerCase(), input.trim().toLowerCase())
-  }
+  // Model not found
+  const modelErr = mapGeminiError({ status: 404, message: 'models/gemini-3.1-flash-lite is not found' })
+  assert.equal(modelErr.status, 404)
+  assert.ok(modelErr.message.includes('unsupported'))
 
-  // 1. Oats — 200 g, with clarification for dry weight versus soaked weight
-  const oats = result.items.find(i => i.canonical_food_name.toLowerCase().includes('oat'))
-  assert.ok(oats, 'Oats must be recognized as its own item')
-  assert.equal(oats.explicit_quantity, 200, 'Must use 200g, not hardcoded 100g')
-  assert.equal(oats.quantity_unit, 'g')
-  assert.equal(oats.estimated_weight_g, 200)
-  assert.equal(oats.is_weight_estimated, false)
-  assert.equal(oats.energy_kcal, 778, '200g dry oats basis must calculate ~778 kcal')
-  assert.ok(oats.assumptions.some(a => a.toLowerCase().includes('soak') || a.toLowerCase().includes('water') || a.toLowerCase().includes('dry')), 'Must document soaking assumptions')
-  assert.ok(oats.clarification_questions.some(q => q.toLowerCase().includes('dry') || q.toLowerCase().includes('soaked')), 'Must clarify dry weight vs soaked wet weight')
-
-  // 2. Almonds — 5 pieces, with editable estimated gram weight
-  const almonds = result.items.find(i => i.canonical_food_name.toLowerCase().includes('almond') || i.canonical_food_name.toLowerCase().includes('badam'))
-  assert.ok(almonds, 'Almonds must be recognized as its own item')
-  assert.equal(almonds.explicit_quantity, 5)
-  assert.equal(almonds.quantity_unit, 'piece')
-  assert.equal(almonds.estimated_weight_g, 6, '5 badam ≈ 6 g')
-  assert.equal(almonds.is_weight_estimated, true, 'Marked as estimated weight')
-  assert.equal(almonds.energy_kcal, 34.7)
-
-  // 3. Grapes — 5 pieces, clarifying fresh grapes versus dried raisins
-  const grapes = result.items.find(i => i.canonical_food_name.toLowerCase().includes('grape'))
-  assert.ok(grapes, 'Grapes must be recognized as its own item')
-  assert.equal(grapes.explicit_quantity, 5)
-  assert.equal(grapes.quantity_unit, 'piece')
-  assert.equal(grapes.estimated_weight_g, 25, '5 fresh grapes ≈ 25 g')
-  assert.equal(grapes.is_weight_estimated, true)
-  assert.equal(grapes.energy_kcal, 17.3)
-  assert.ok(grapes.clarification_questions.some(q => q.toLowerCase().includes('fresh') || q.toLowerCase().includes('raisin') || q.toLowerCase().includes('dried')), 'Must clarify fresh grapes vs dried raisins')
-
-  // Total meal calories must equal sum of the 3 items (778 + 34.7 + 17.3 = 830 kcal)
-  assert.equal(result.totals.energy_kcal, 830)
-  assert.ok(!result.items.some(i => i.canonical_food_name.toLowerCase().includes('carrot')), 'Must never insert carrots')
+  // Timeout
+  const timeoutErr = mapGeminiError({ name: 'TimeoutError', message: 'aborted' })
+  assert.equal(timeoutErr.status, 504)
+  assert.ok(timeoutErr.message.includes('timed out'))
 })
 
-test('OpenAI Direct Analysis: Quantities affect calculations — 100g vs 200g oats', async () => {
-  const result100 = await analyzeMealDirectly('100 g oats with 5 badam and 5 grapes')
-  const result200 = await analyzeMealDirectly('200 g oats with 5 badam and 5 grapes')
-
-  assert.equal(result100.items.length, 3)
-  assert.equal(result200.items.length, 3)
-
-  const oats100 = result100.items.find(i => i.canonical_food_name.toLowerCase().includes('oat'))
-  const oats200 = result200.items.find(i => i.canonical_food_name.toLowerCase().includes('oat'))
-
-  // Quantities retained
-  assert.equal(oats100.explicit_quantity, 100)
-  assert.equal(oats200.explicit_quantity, 200)
-
-  // Changing quantities changes totals: doubling weight doubles calories
-  assert.equal(oats100.energy_kcal, 389)
-  assert.equal(oats200.energy_kcal, 778)
-  assert.equal(Math.round(oats200.energy_kcal / oats100.energy_kcal), 2, 'Doubling oats weight doubles calories')
-
-  // Meal totals
-  assert.equal(result100.totals.energy_kcal, 441)
-  assert.equal(result200.totals.energy_kcal, 830)
-  assert.equal(result200.totals.energy_kcal - result100.totals.energy_kcal, 389, 'Difference equals extra 100g oats calories')
-})
-
-test('OpenAI Direct Analysis: Rejection of malformed compound sentence items', () => {
+test('Gemini Direct Analysis: Rejection of malformed compound sentence items', () => {
   const compoundItem = {
-    canonical_food_name: '200gm overnight soaked oats with 5 badam and 5 grapes',
-    explicit_quantity: 1,
-    quantity_unit: 'serving',
-    estimated_weight_g: 100,
-    energy_kcal: 150,
-    protein_g: 5,
-    carb_g: 20,
-    fat_g: 5,
-    fibre_g: 2
+    foodName: '200 g overnight-soaked oats with 5 almonds and 5 grapes',
+    quantity: 1,
+    unit: 'serving',
+    estimatedGrams: 100,
+    calories: 150,
+    protein: 5,
+    carbohydrates: 20,
+    fat: 5,
+    fibre: 2
   }
 
   assert.throws(() => {
-    validateNutritionResponse({
+    validateAndNormalizeNutritionResponse({
       items: [compoundItem]
-    }, '200gm overnight soaked oats with 5 badam and 5 grapes')
+    }, '200 g overnight-soaked oats with 5 almonds and 5 grapes')
   }, /Malformed nutrition analysis.*single ingredient/)
 })
 

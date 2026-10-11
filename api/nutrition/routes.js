@@ -17,7 +17,7 @@ import {
   updateMealLog,
   deleteMealLog
 } from './db.js';
-import { analyzeMealDirectly } from './openai.js';
+import { analyzeMealWithGemini } from './gemini.js';
 import { calculateRecipeNutrition } from './engine.js';
 
 export function nutritionRoutes({ json, readBody, readSession }) {
@@ -69,17 +69,18 @@ export function nutritionRoutes({ json, readBody, readSession }) {
       });
     },
 
-    /* ---------- Direct AI Meal Nutrition Analysis ---------- */
+    /* ---------- Direct AI Meal Nutrition Analysis (Google Gemini) ---------- */
     'POST /api/nutrition/parse': async (req, res) => {
       const body = await readBody(req);
       const text = String(body.text || '').trim();
-      if (!text) return json(res, 400, { error: 'Meal description is required.' });
+      if (!text) return json(res, 400, { error: 'Meal description cannot be empty.' });
 
       try {
-        const result = await analyzeMealDirectly(text);
+        const result = await analyzeMealWithGemini(text);
         json(res, 200, { ok: true, ...result });
       } catch (e) {
-        json(res, 400, { error: e.message });
+        const status = e.status || (e.isQuota ? 429 : 400);
+        json(res, status, { error: e.message, isQuota: e.isQuota || false });
       }
     },
 
