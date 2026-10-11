@@ -88,55 +88,99 @@ The parser pipeline handles complex, conversational user queries in the followin
 All endpoints are hosted on the Node.js API server (`http://localhost:3000`):
 
 ### 1. `POST /api/nutrition/parse`
-Parses a natural-language query and returns calculated nutrients and assumptions.
+Analyzes a natural-language meal description directly via OpenAI Structured Outputs and returns structured ingredients, portion weights, macronutrient totals, assumptions, and clarifications.
 - **Request**:
   ```json
-  { "text": "2 wheat roti with chicken gravy" }
+  { "text": "100gm overnight soaked oats with 5 badam and 5 dry grapes and 150 gm of banana" }
   ```
 - **Response**:
   ```json
   {
     "ok": true,
-    "raw_input": "2 wheat roti with chicken gravy",
+    "input_summary": "100g overnight soaked oats with 5 almonds, 5 raisins, and 150g banana",
+    "calculation_status": "complete",
     "items": [
       {
-        "food_id": "STAPLE:roti",
-        "food_name": "Wheat Roti / Chapati",
-        "quantity": 2,
-        "unit": "roti",
-        "grams": 70,
-        "nutrients": {
-          "energy_kcal": 207.9,
-          "protein_g": 6.3,
-          "carb_g": 45,
-          "fat_g": 2.1,
-          "fibre_g": 4.2
-        },
-        "confidence": "verified_lab"
+        "ingredient_name": "Rolled Oats (Overnight Soaked)",
+        "explicit_quantity": 100,
+        "quantity_unit": "g",
+        "is_quantity_estimated": false,
+        "estimated_weight_g": 100,
+        "is_weight_estimated": false,
+        "prep_state": "soaked",
+        "energy_kcal": 389,
+        "protein_g": 16.9,
+        "carb_g": 66.3,
+        "fat_g": 6.9,
+        "fibre_g": 10.6,
+        "confidence": "high",
+        "assumptions": ["Calculated for 100 g dry rolled oats weighed before soaking."],
+        "clarification_questions": ["Did the 100 g refer to dry oats or soaked wet weight?"]
       },
       {
-        "food_id": "STAPLE:chicken_gravy",
-        "food_name": "Chicken Gravy / Curry",
-        "quantity": 1,
-        "unit": "katori",
-        "grams": 150,
-        "nutrients": {
-          "energy_kcal": 180,
-          "protein_g": 13.5,
-          "carb_g": 6,
-          "fat_g": 11.25,
-          "fibre_g": 1.5
-        },
-        "confidence": "verified_lab"
+        "ingredient_name": "Almonds (Badam)",
+        "explicit_quantity": 5,
+        "quantity_unit": "piece",
+        "is_quantity_estimated": false,
+        "estimated_weight_g": 6,
+        "is_weight_estimated": true,
+        "prep_state": "raw",
+        "energy_kcal": 34.7,
+        "protein_g": 1.3,
+        "carb_g": 1.3,
+        "fat_g": 3,
+        "fibre_g": 0.8,
+        "confidence": "medium",
+        "assumptions": ["Estimated at 1.2 g average weight per raw almond kernel (5 pieces = 6.0 g)."],
+        "clarification_questions": []
+      },
+      {
+        "ingredient_name": "Raisins (Dry Grapes)",
+        "explicit_quantity": 5,
+        "quantity_unit": "piece",
+        "is_quantity_estimated": false,
+        "estimated_weight_g": 2.5,
+        "is_weight_estimated": true,
+        "prep_state": "dried",
+        "energy_kcal": 7.5,
+        "protein_g": 0.1,
+        "carb_g": 2,
+        "fat_g": 0,
+        "fibre_g": 0.1,
+        "confidence": "medium",
+        "assumptions": ["Estimated at 0.5 g average weight per raisin (5 pieces = 2.5 g)."],
+        "clarification_questions": []
+      },
+      {
+        "ingredient_name": "Banana (Fresh)",
+        "explicit_quantity": 150,
+        "quantity_unit": "g",
+        "is_quantity_estimated": false,
+        "estimated_weight_g": 150,
+        "is_weight_estimated": false,
+        "prep_state": "raw",
+        "energy_kcal": 133.5,
+        "protein_g": 1.7,
+        "carb_g": 34.2,
+        "fat_g": 0.5,
+        "fibre_g": 3.9,
+        "confidence": "high",
+        "assumptions": ["Calculated for 150 g peeled ripe banana as specified."],
+        "clarification_questions": []
       }
     ],
     "totals": {
-      "energy_kcal": 387.9,
-      "protein_g": 19.8,
-      "carb_g": 51,
-      "fat_g": 13.35,
-      "fibre_g": 5.7
-    }
+      "energy_kcal": 564.7,
+      "protein_g": 20,
+      "carb_g": 103.8,
+      "fat_g": 10.4,
+      "fibre_g": 15.4
+    },
+    "reconciliation_notes": "Total meal calories (564.7 kcal) are reconciled by exact summation of the 4 ingredient estimates.",
+    "overall_assumptions": ["Standard USDA / ICMR nutrient composition tables applied."],
+    "clarifications": ["Portions are editable before saving to your profile."],
+    "disclaimer": "Nutritional values are AI-generated clinical estimates based on standard nutritional composition references, not laboratory-verified measurements of your specific preparation. Portions and values are editable before logging.",
+    "provider": "openai"
   }
   ```
 

@@ -145,31 +145,45 @@ export default function Nutrition() {
       if (!prev || !prev.items) return prev
       const items = [...prev.items]
       const target = { ...items[idx] }
-      const oldQty = target.quantity || 1
+      const oldQty = target.explicit_quantity ?? target.quantity ?? 1
       const factor = oldQty > 0 ? (q / oldQty) : 1
+      target.explicit_quantity = q
       target.quantity = q
-      target.grams = Math.round((target.grams * factor) * 10) / 10
+      const baseWeight = target.estimated_weight_g ?? target.grams ?? 100
+      target.estimated_weight_g = Math.round((baseWeight * factor) * 10) / 10
+      target.grams = target.estimated_weight_g
+
+      const baseKcal = target.energy_kcal ?? target.nutrients?.energy_kcal ?? 0
+      const baseProt = target.protein_g ?? target.nutrients?.protein_g ?? 0
+      const baseCarb = target.carb_g ?? target.nutrients?.carb_g ?? 0
+      const baseFat = target.fat_g ?? target.nutrients?.fat_g ?? 0
+      const baseFib = target.fibre_g ?? target.nutrients?.fibre_g ?? 0
+
+      target.energy_kcal = Math.round((baseKcal * factor) * 10) / 10
+      target.protein_g = Math.round((baseProt * factor) * 10) / 10
+      target.carb_g = Math.round((baseCarb * factor) * 10) / 10
+      target.fat_g = Math.round((baseFat * factor) * 10) / 10
+      target.fibre_g = Math.round((baseFib * factor) * 10) / 10
+
       if (target.nutrients) {
         target.nutrients = {
-          energy_kcal: Math.round((target.nutrients.energy_kcal * factor) * 10) / 10,
-          protein_g: Math.round((target.nutrients.protein_g * factor) * 10) / 10,
-          carb_g: Math.round((target.nutrients.carb_g * factor) * 10) / 10,
-          fat_g: Math.round((target.nutrients.fat_g * factor) * 10) / 10,
-          fibre_g: Math.round((target.nutrients.fibre_g * factor) * 10) / 10
+          energy_kcal: target.energy_kcal,
+          protein_g: target.protein_g,
+          carb_g: target.carb_g,
+          fat_g: target.fat_g,
+          fibre_g: target.fibre_g
         }
       }
       items[idx] = target
 
-      // Recalculate totals
+      // Recalculate totals directly as sum of all items
       const totals = { energy_kcal: 0, protein_g: 0, carb_g: 0, fat_g: 0, fibre_g: 0 }
       for (const it of items) {
-        if (it.matched && it.nutrients) {
-          totals.energy_kcal += it.nutrients.energy_kcal
-          totals.protein_g += it.nutrients.protein_g
-          totals.carb_g += it.nutrients.carb_g
-          totals.fat_g += it.nutrients.fat_g
-          totals.fibre_g += it.nutrients.fibre_g
-        }
+        totals.energy_kcal += (it.energy_kcal ?? it.nutrients?.energy_kcal ?? 0)
+        totals.protein_g += (it.protein_g ?? it.nutrients?.protein_g ?? 0)
+        totals.carb_g += (it.carb_g ?? it.nutrients?.carb_g ?? 0)
+        totals.fat_g += (it.fat_g ?? it.nutrients?.fat_g ?? 0)
+        totals.fibre_g += (it.fibre_g ?? it.nutrients?.fibre_g ?? 0)
       }
       totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10
       totals.protein_g = Math.round(totals.protein_g * 10) / 10
@@ -188,13 +202,11 @@ export default function Nutrition() {
       const items = prev.items.filter((_, i) => i !== idx)
       const totals = { energy_kcal: 0, protein_g: 0, carb_g: 0, fat_g: 0, fibre_g: 0 }
       for (const it of items) {
-        if (it.matched && it.nutrients) {
-          totals.energy_kcal += it.nutrients.energy_kcal
-          totals.protein_g += it.nutrients.protein_g
-          totals.carb_g += it.nutrients.carb_g
-          totals.fat_g += it.nutrients.fat_g
-          totals.fibre_g += it.nutrients.fibre_g
-        }
+        totals.energy_kcal += (it.energy_kcal ?? it.nutrients?.energy_kcal ?? 0)
+        totals.protein_g += (it.protein_g ?? it.nutrients?.protein_g ?? 0)
+        totals.carb_g += (it.carb_g ?? it.nutrients?.carb_g ?? 0)
+        totals.fat_g += (it.fat_g ?? it.nutrients?.fat_g ?? 0)
+        totals.fibre_g += (it.fibre_g ?? it.nutrients?.fibre_g ?? 0)
       }
       totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10
       totals.protein_g = Math.round(totals.protein_g * 10) / 10
@@ -215,40 +227,32 @@ export default function Nutrition() {
           if (!prev || !prev.items) return prev
           const items = [...prev.items]
           const target = { ...items[idx] }
-          const q = target.quantity || 1
-          const factor = (target.grams || 100) / 100
-          target.matched = true
-          target.food_id = food.id
+          const factor = (target.estimated_weight_g || target.grams || 100) / 100
+          target.ingredient_name = food.name
           target.food_name = food.name
           target.tamil_name = food.tamil_name || null
-          target.source = food.source
-          target.error = null
-          target.nutrients = {
-            energy_kcal: Math.round((food.energy_kcal * factor) * 10) / 10,
-            protein_g: Math.round((food.protein_g * factor) * 10) / 10,
-            carb_g: Math.round((food.carb_g * factor) * 10) / 10,
-            fat_g: Math.round((food.fat_g * factor) * 10) / 10,
-            fibre_g: Math.round((food.fibre_g * factor) * 10) / 10
-          }
+          target.energy_kcal = Math.round((food.energy_kcal * factor) * 10) / 10
+          target.protein_g = Math.round((food.protein_g * factor) * 10) / 10
+          target.carb_g = Math.round((food.carb_g * factor) * 10) / 10
+          target.fat_g = Math.round((food.fat_g * factor) * 10) / 10
+          target.fibre_g = Math.round((food.fibre_g * factor) * 10) / 10
           items[idx] = target
 
           // Recalculate totals
           const totals = { energy_kcal: 0, protein_g: 0, carb_g: 0, fat_g: 0, fibre_g: 0 }
           for (const it of items) {
-            if (it.matched && it.nutrients) {
-              totals.energy_kcal += it.nutrients.energy_kcal
-              totals.protein_g += it.nutrients.protein_g
-              totals.carb_g += it.nutrients.carb_g
-              totals.fat_g += it.nutrients.fat_g
-              totals.fibre_g += it.nutrients.fibre_g
-            }
+            totals.energy_kcal += (it.energy_kcal ?? it.nutrients?.energy_kcal ?? 0)
+            totals.protein_g += (it.protein_g ?? it.nutrients?.protein_g ?? 0)
+            totals.carb_g += (it.carb_g ?? it.nutrients?.carb_g ?? 0)
+            totals.fat_g += (it.fat_g ?? it.nutrients?.fat_g ?? 0)
+            totals.fibre_g += (it.fibre_g ?? it.nutrients?.fibre_g ?? 0)
           }
           totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10
           totals.protein_g = Math.round(totals.protein_g * 10) / 10
           totals.carb_g = Math.round(totals.carb_g * 10) / 10
           totals.fat_g = Math.round(totals.fat_g * 10) / 10
           totals.fibre_g = Math.round(totals.fibre_g * 10) / 10
-          return { ...prev, items, totals, all_matched: items.every(i => i.matched) }
+          return { ...prev, items, totals }
         })
       }
     } catch (e) {
@@ -259,19 +263,13 @@ export default function Nutrition() {
   // Explicit confirmation before adding parsed meal to daily profile
   const handleConfirmAndAddMeal = () => {
     if (!parsedMeal || !parsedMeal.items?.length) return
-    const matchedItems = parsedMeal.items.filter(i => i.matched)
-    if (!matchedItems.length) {
-      toast(t('No verified food items to log.'))
-      return
-    }
-
     const mealName = MEAL_TYPES.find(m => m.id === selectedMealType)?.label || selectedMealType
     confirmSheet({
       title: t('Log {0} to Daily Profile?', mealName),
-      message: t('Add {0} item(s) totaling {1} kcal, {2}g protein for {3}?', matchedItems.length, parsedMeal.totals?.energy_kcal, parsedMeal.totals?.protein_g, fmtDate(date)),
+      message: t('Add {0} item(s) totaling {1} kcal, {2}g protein for {3}?', parsedMeal.items.length, parsedMeal.totals?.energy_kcal, parsedMeal.totals?.protein_g, fmtDate(date)),
       confirmText: t('Confirm & Add Meal'),
       onConfirm: async () => {
-        await executeAddParsedMeal(matchedItems)
+        await executeAddParsedMeal(parsedMeal.items)
       }
     })
   }
@@ -284,17 +282,17 @@ export default function Nutrition() {
       const entry = {
         date,
         meal_type: selectedMealType,
-        food_id: item.food_id,
-        food_name: item.food_name,
-        serving_quantity: item.quantity,
-        serving_unit: item.unit,
-        serving_grams: item.grams,
-        energy_kcal: item.nutrients.energy_kcal,
-        protein_g: item.nutrients.protein_g,
-        carb_g: item.nutrients.carb_g,
-        fat_g: item.nutrients.fat_g,
-        fibre_g: item.nutrients.fibre_g,
-        assumptions: item.assumptions
+        food_id: item.food_id || null,
+        food_name: item.ingredient_name || item.food_name || 'Food Item',
+        serving_quantity: item.explicit_quantity ?? item.quantity ?? 1,
+        serving_unit: item.quantity_unit || item.unit || 'g',
+        serving_grams: item.estimated_weight_g ?? item.grams ?? 100,
+        energy_kcal: item.energy_kcal ?? item.nutrients?.energy_kcal ?? 0,
+        protein_g: item.protein_g ?? item.nutrients?.protein_g ?? 0,
+        carb_g: item.carb_g ?? item.nutrients?.carb_g ?? 0,
+        fat_g: item.fat_g ?? item.nutrients?.fat_g ?? 0,
+        fibre_g: item.fibre_g ?? item.nutrients?.fibre_g ?? 0,
+        assumptions: item.assumptions || []
       }
 
       if (user) {
@@ -739,18 +737,18 @@ export default function Nutrition() {
                 </span>
                 <span style={{ fontWeight: 600, fontSize: 17 }}>{t('AI Meal Calculator')}</span>
               </div>
-              <span className="chip sm nocap" style={{ background: 'var(--surface-2)', fontSize: 11 }}>
-                {t('Verified Data')}
+              <span className="chip sm nocap" style={{ background: 'var(--surface-2)', fontSize: 11, color: 'var(--purple)' }}>
+                {t('AI Estimates')}
               </span>
             </div>
             <p className="muted small" style={{ marginBottom: 12 }}>
-              {t('Type food items, quantities, or complete meals. The engine parses ingredients and calculates exact calories and macros.')}
+              {t('Describe your meal, ingredients, or recipes. The AI analyzes each item into structured ingredients with clinical nutritional estimates that you can review and edit.')}
             </p>
 
             {/* Input Text Area */}
             <textarea
               rows={3}
-              placeholder={t('e.g. 2 wheat roti with chicken gravy\nor: 150 g rice, 100 g chicken and 1 tablespoon oil')}
+              placeholder={t('e.g. 100gm overnight soaked oats with 5 badam and 5 dry grapes and 150 gm of banana\nor: 2 wheat roti with chicken gravy')}
               value={nlInput}
               onChange={e => setNlInput(e.target.value)}
               style={{
@@ -787,15 +785,32 @@ export default function Nutrition() {
               disabled={!nlInput.trim() || analyzing}
               onClick={handleAnalyzeMeal}
             >
-              {analyzing ? t('Analyzing with verified database...') : t('Calculate Nutrition')}
+              {analyzing ? t('Analyzing meal with AI...') : t('Calculate Nutrition')}
             </Button>
           </div>
 
-          {/* Parsed Analysis Panel */}
+          {/* Parsed AI Analysis Panel */}
           {parsedMeal && (
             <div className="card" style={{ border: '1px solid var(--acc)', animation: 'slideup 0.2s ease' }}>
-              <div className="row between" style={{ marginBottom: 12 }}>
-                <div style={{ fontWeight: 600, fontSize: 16 }}>{t('Nutrition Analysis')}</div>
+              <div className="row between" style={{ marginBottom: 8, alignItems: 'center' }}>
+                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, fontSize: 16 }}>{t('AI Nutrition Analysis')}</span>
+                  {parsedMeal.calculation_status === 'complete' && (
+                    <span className="chip sm" style={{ background: 'color-mix(in srgb, var(--green) 18%, transparent)', color: 'var(--green)', fontSize: 11 }}>
+                      {t('Complete')}
+                    </span>
+                  )}
+                  {parsedMeal.calculation_status === 'needs_clarification' && (
+                    <span className="chip sm" style={{ background: 'color-mix(in srgb, var(--orange) 18%, transparent)', color: 'var(--orange)', fontSize: 11 }}>
+                      {t('Needs Clarification')}
+                    </span>
+                  )}
+                  {parsedMeal.calculation_status === 'approximate' && (
+                    <span className="chip sm" style={{ background: 'color-mix(in srgb, var(--acc) 18%, transparent)', color: 'var(--acc)', fontSize: 11 }}>
+                      {t('Approximate')}
+                    </span>
+                  )}
+                </div>
                 <button
                   className="iconbtn"
                   style={{ width: 26, height: 26, fontSize: 13 }}
@@ -805,106 +820,112 @@ export default function Nutrition() {
                 </button>
               </div>
 
+              {parsedMeal.input_summary && (
+                <div className="muted small" style={{ marginBottom: 12, fontStyle: 'italic' }}>
+                  "{parsedMeal.input_summary}"
+                </div>
+              )}
+
               {/* Items Breakdown */}
               <div className="list" style={{ marginBottom: 14 }}>
                 {parsedMeal.items?.map((item, idx) => (
-                  <div key={idx} className="item" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '10px 8px', borderBottom: 'var(--hair) solid var(--sep)' }}>
-                    {item.matched ? (
-                      <>
-                        <div className="row between">
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: 15 }}>{item.food_name}</div>
-                            {item.tamil_name && <div className="muted" style={{ fontSize: 12 }}>({item.tamil_name})</div>}
-                          </div>
-                          <div className="row" style={{ gap: 8 }}>
-                            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--acc)' }}>
-                              {item.nutrients?.energy_kcal} kcal
+                  <div key={idx} className="item" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '12px 10px', borderBottom: 'var(--hair) solid var(--sep)' }}>
+                    <div className="row between" style={{ alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                          <span>{item.ingredient_name || item.food_name}</span>
+                          {item.prep_state && (
+                            <span className="chip sm nocap" style={{ fontSize: 10, background: 'var(--surface-3)', padding: '2px 6px' }}>
+                              {item.prep_state}
                             </span>
-                            <button
-                              className="iconbtn"
-                              style={{ width: 24, height: 24, fontSize: 12, color: 'var(--muted)' }}
-                              onClick={() => handleRemoveParsedItem(idx)}
-                              title={t('Remove from meal')}
-                            >
-                              <Icon name="xmark" />
-                            </button>
-                          </div>
+                          )}
+                          {item.is_weight_estimated ? (
+                            <span className="chip sm nocap" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--orange) 14%, transparent)', color: 'var(--orange)', padding: '2px 6px' }}>
+                              {t('Est. weight')}
+                            </span>
+                          ) : (
+                            <span className="chip sm nocap" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--green) 14%, transparent)', color: 'var(--green)', padding: '2px 6px' }}>
+                              {t('Exact')}
+                            </span>
+                          )}
+                          {item.confidence && (
+                            <span className="chip sm nocap" style={{
+                              fontSize: 10,
+                              background: item.confidence === 'high' ? 'color-mix(in srgb, var(--green) 14%, transparent)' : item.confidence === 'low' ? 'color-mix(in srgb, var(--orange) 14%, transparent)' : 'var(--surface-3)',
+                              color: item.confidence === 'high' ? 'var(--green)' : item.confidence === 'low' ? 'var(--orange)' : 'var(--label)',
+                              padding: '2px 6px'
+                            }}>
+                              {item.confidence} {t('confidence')}
+                            </span>
+                          )}
                         </div>
+                      </div>
+                      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--acc)' }}>
+                          {item.energy_kcal ?? item.nutrients?.energy_kcal} kcal
+                        </span>
+                        <button
+                          className="iconbtn"
+                          style={{ width: 24, height: 24, fontSize: 12, color: 'var(--muted)' }}
+                          onClick={() => handleRemoveParsedItem(idx)}
+                          title={t('Remove from meal')}
+                        >
+                          <Icon name="xmark" />
+                        </button>
+                      </div>
+                    </div>
 
-                        {/* Interactive Portion Editor */}
-                        <div className="row between" style={{ marginTop: 6, flexWrap: 'wrap', gap: 6 }}>
-                          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                            <label className="muted small" style={{ fontSize: 12 }}>{t('Portion:')}</label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={item.quantity}
-                              onChange={e => handleUpdateItemPortion(idx, e.target.value)}
-                              style={{
-                                width: 56,
-                                padding: '3px 6px',
-                                borderRadius: 6,
-                                border: '1px solid var(--surface-3)',
-                                background: 'var(--surface-2)',
-                                color: 'var(--label)',
-                                fontSize: 13,
-                                textAlign: 'center'
-                              }}
-                            />
-                            <span className="muted small">{item.unit} ({item.grams}g)</span>
-                          </div>
-                          <span className="muted small">
-                            P: {item.nutrients?.protein_g}g · C: {item.nutrients?.carb_g}g · F: {item.nutrients?.fat_g}g · Fib: {item.nutrients?.fibre_g}g
-                          </span>
-                        </div>
+                    {/* Interactive Portion Editor */}
+                    <div className="row between" style={{ marginTop: 8, flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                      <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                        <label className="muted small" style={{ fontSize: 12 }}>{t('Portion:')}</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.explicit_quantity ?? item.quantity ?? 1}
+                          onChange={e => handleUpdateItemPortion(idx, e.target.value)}
+                          style={{
+                            width: 60,
+                            padding: '4px 6px',
+                            borderRadius: 6,
+                            border: '1px solid var(--surface-3)',
+                            background: 'var(--surface-2)',
+                            color: 'var(--label)',
+                            fontSize: 13,
+                            textAlign: 'center'
+                          }}
+                        />
+                        <span className="muted small">
+                          {item.quantity_unit || item.unit} ({item.estimated_weight_g ?? item.grams}g)
+                        </span>
+                      </div>
+                      <span className="muted small" style={{ fontWeight: 500 }}>
+                        P: {item.protein_g ?? item.nutrients?.protein_g}g · C: {item.carb_g ?? item.nutrients?.carb_g}g · F: {item.fat_g ?? item.nutrients?.fat_g}g · Fib: {item.fibre_g ?? item.nutrients?.fibre_g}g
+                      </span>
+                    </div>
 
-                        {/* Clarifications / Assumptions banner */}
-                        {item.clarification && (
-                          <div style={{ marginTop: 6, padding: '6px 10px', background: 'color-mix(in srgb, var(--orange) 16%, transparent)', borderRadius: 6, fontSize: 12, color: 'var(--orange)' }}>
-                            <Icon name="info" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
-                            {item.clarification}
+                    {/* Assumptions */}
+                    {item.assumptions && item.assumptions.length > 0 && (
+                      <div style={{ marginTop: 6, padding: '4px 8px', background: 'var(--surface-2)', borderRadius: 6, fontSize: 12, color: 'var(--muted)' }}>
+                        {item.assumptions.map((assump, aIdx) => (
+                          <div key={aIdx} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Icon name="circle-info" style={{ fontSize: 11, color: 'var(--acc)' }} />
+                            <span>{assump}</span>
                           </div>
-                        )}
-                      </>
-                    ) : (
-                      /* Unmatched Food Card */
-                      <div style={{ padding: '8px 10px', background: 'color-mix(in srgb, var(--red) 12%, transparent)', borderRadius: 8, border: '1px solid color-mix(in srgb, var(--red) 28%, transparent)' }}>
-                        <div className="row between">
-                          <div style={{ fontWeight: 600, color: 'var(--red)', fontSize: 14 }}>
-                            <Icon name="circle-exclamation" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
-                            {t('Unmatched Food')}: "{item.food_name || item.query}"
-                          </div>
-                          <button
-                            className="iconbtn"
-                            style={{ width: 24, height: 24, fontSize: 12, color: 'var(--red)' }}
-                            onClick={() => handleRemoveParsedItem(idx)}
-                            title={t('Remove unmatched')}
-                          >
-                            <Icon name="xmark" />
-                          </button>
-                        </div>
-                        <div className="muted small" style={{ marginTop: 4 }}>
-                          {item.error || t('Could not find verified food record.')}
-                        </div>
+                        ))}
+                      </div>
+                    )}
 
-                        {item.alternatives?.length > 0 && (
-                          <div style={{ marginTop: 8 }}>
-                            <span className="small muted" style={{ display: 'block', marginBottom: 4 }}>{t('Suggested alternatives:')}</span>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {item.alternatives.map((alt, ai) => (
-                                <button
-                                  key={ai}
-                                  className="chip sm nocap"
-                                  style={{ background: 'var(--surface-3)', cursor: 'pointer', fontSize: 11 }}
-                                  onClick={() => handleSelectAlternative(idx, alt)}
-                                >
-                                  + {alt.name}
-                                </button>
-                              ))}
-                            </div>
+                    {/* Clarification Questions */}
+                    {item.clarification_questions && item.clarification_questions.length > 0 && (
+                      <div style={{ marginTop: 6, padding: '6px 10px', background: 'color-mix(in srgb, var(--orange) 14%, transparent)', borderRadius: 6, fontSize: 12, color: 'var(--orange)' }}>
+                        {item.clarification_questions.map((qText, qIdx) => (
+                          <div key={qIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Icon name="triangle-exclamation" style={{ fontSize: 12 }} />
+                            <span>{qText}</span>
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
@@ -912,17 +933,39 @@ export default function Nutrition() {
               </div>
 
               {/* Meal Total Summary */}
-              <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10, marginBottom: 14 }}>
+              <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10, marginBottom: 12 }}>
                 <div className="row between" style={{ fontWeight: 700, fontSize: 17, marginBottom: 4 }}>
                   <span>{t('Total Meal Nutrition')}</span>
                   <span className="accent">{parsedMeal.totals?.energy_kcal} kcal</span>
                 </div>
-                <div className="muted small row between">
+                <div className="muted small row between" style={{ flexWrap: 'wrap', gap: 8 }}>
                   <span>{t('Protein: {0}g', parsedMeal.totals?.protein_g)}</span>
                   <span>{t('Carbs: {0}g', parsedMeal.totals?.carb_g)}</span>
                   <span>{t('Fat: {0}g', parsedMeal.totals?.fat_g)}</span>
                   <span>{t('Fibre: {0}g', parsedMeal.totals?.fibre_g)}</span>
                 </div>
+                {parsedMeal.reconciliation_notes && (
+                  <div className="muted small" style={{ marginTop: 8, fontSize: 11, borderTop: 'var(--hair) solid var(--sep)', paddingTop: 6 }}>
+                    <Icon name="check" style={{ marginRight: 4, color: 'var(--green)' }} />
+                    {parsedMeal.reconciliation_notes}
+                  </div>
+                )}
+              </div>
+
+              {/* Clarification Questions across meal */}
+              {parsedMeal.clarifications && parsedMeal.clarifications.length > 0 && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: 'color-mix(in srgb, var(--orange) 12%, transparent)', borderRadius: 8, fontSize: 12, color: 'var(--orange)' }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('Clarification Questions:')}</div>
+                  {parsedMeal.clarifications.map((cl, ci) => (
+                    <div key={ci}>• {cl}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* AI Disclaimer */}
+              <div className="muted small" style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 8, fontSize: 11 }}>
+                <Icon name="shield-halved" style={{ marginRight: 6, color: 'var(--acc)' }} />
+                {parsedMeal.disclaimer || t('Nutritional values are AI-generated clinical estimates based on standard nutritional composition references, not laboratory-verified measurements. Portions and values are editable before logging.')}
               </div>
 
               {/* Meal Selection and Add Action */}

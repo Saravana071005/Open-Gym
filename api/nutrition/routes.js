@@ -17,8 +17,8 @@ import {
   updateMealLog,
   deleteMealLog
 } from './db.js';
-import { parseMeal, parseMealAsync } from './parser.js';
-import { calculateRecipeNutrition, resolveGrams, calculateNutrients } from './engine.js';
+import { analyzeMealDirectly } from './openai.js';
+import { calculateRecipeNutrition } from './engine.js';
 
 export function nutritionRoutes({ json, readBody, readSession }) {
   const requireUser = (req, res) => {
@@ -31,7 +31,7 @@ export function nutritionRoutes({ json, readBody, readSession }) {
   };
 
   return {
-    /* ---------- Food Search & Details ---------- */
+    /* ---------- Food Search & Details (For manual entry) ---------- */
     'GET /api/nutrition/search': async (req, res) => {
       const url = new URL(req.url, 'http://x');
       const q = url.searchParams.get('q') || '';
@@ -54,7 +54,6 @@ export function nutritionRoutes({ json, readBody, readSession }) {
       const food = getFoodById(id);
       if (!food) return json(res, 404, { error: 'food not found' });
 
-      // If recipe, include ingredients
       let ingredients = [];
       if (food.is_recipe && food.source_id) {
         ingredients = getRecipeIngredients(food.source_id);
@@ -70,17 +69,17 @@ export function nutritionRoutes({ json, readBody, readSession }) {
       });
     },
 
-    /* ---------- Natural Language Meal Parser ---------- */
+    /* ---------- Direct AI Meal Nutrition Analysis ---------- */
     'POST /api/nutrition/parse': async (req, res) => {
       const body = await readBody(req);
       const text = String(body.text || '').trim();
-      if (!text) return json(res, 400, { error: 'text is required' });
+      if (!text) return json(res, 400, { error: 'Meal description is required.' });
 
       try {
-        const result = await parseMealAsync(text);
+        const result = await analyzeMealDirectly(text);
         json(res, 200, { ok: true, ...result });
       } catch (e) {
-        json(res, 500, { error: e.message });
+        json(res, 400, { error: e.message });
       }
     },
 

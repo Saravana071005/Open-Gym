@@ -1,5 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+
+process.env.NODE_ENV = 'test'
+process.env.OPENAI_API_KEY = 'mock-key'
+
 import {
   getFoodById,
   searchFoods,
@@ -322,5 +326,181 @@ test('Phase 10: Invalid quantity rejection and ghost card prevention', () => {
   assert.equal(unknown.items[0].matched, false)
   assert.equal(unknown.items[0].food_name, 'xyznonexistentfoodabc')
   assert.ok(unknown.items[0].error.includes('Could not find verified food'))
+})
+
+/* =========================================================================
+ * OpenAI Direct Nutrition Analysis Tests (Migration from Dataset Model)
+ * ========================================================================= */
+import {
+  analyzeMealDirectly,
+  validateNutritionResponse,
+  getMockNutritionAnalysis
+} from '../nutrition/openai.js'
+
+test('OpenAI Direct Analysis: Screenshot regression — overnight oats with badam, dry grapes, and banana', async () => {
+  const text = '100gm overnight soaked oats with 5 badam and 5 dry grapes and 150 gm of banana'
+  const result = await analyzeMealDirectly(text)
+
+  assert.ok(result, 'Result should be returned')
+  assert.equal(result.items.length, 4, 'Must identify exactly 4 foods without inserting unmentioned items')
+
+  // Verify no carrots or other unmentioned items
+  const names = result.items.map(i => i.ingredient_name.toLowerCase())
+  assert.ok(!names.some(n => n.includes('carrot')), 'Must NOT insert carrots')
+
+  // Item 1: Oats (100g)
+  const oats = result.items.find(i => i.ingredient_name.toLowerCase().includes('oat'))
+  assert.ok(oats, 'Oats must be recognized')
+  assert.equal(oats.explicit_quantity, 100)
+  assert.equal(oats.quantity_unit, 'g')
+  assert.equal(oats.estimated_weight_g, 100)
+  assert.equal(oats.is_weight_estimated, false)
+  assert.ok(oats.assumptions.some(a => a.toLowerCase().includes('soak') || a.toLowerCase().includes('water') || a.toLowerCase().includes('dry')), 'Should explain dry vs soaked weight')
+
+  // Item 2: Almonds / Badam (5 pieces, estimated weight ~6g)
+  const almonds = result.items.find(i => i.ingredient_name.toLowerCase().includes('almond') || i.ingredient_name.toLowerCase().includes('badam'))
+  assert.ok(almonds, 'Almonds/Badam must be recognized')
+  assert.equal(almonds.explicit_quantity, 5)
+  assert.equal(almonds.quantity_unit, 'piece')
+  assert.equal(almonds.estimated_weight_g, 6)
+  assert.equal(almonds.is_weight_estimated, true, 'Gram weight must be marked estimated when count is supplied')
+
+  // Item 3: Raisins / Dry grapes (5 pieces, estimated weight ~2.5g)
+  const raisins = result.items.find(i => i.ingredient_name.toLowerCase().includes('raisin') || i.ingredient_name.toLowerCase().includes('grape'))
+  assert.ok(raisins, 'Raisins/Dry grapes must be recognized')
+  assert.equal(raisins.explicit_quantity, 5)
+  assert.equal(raisins.quantity_unit, 'piece')
+  assert.equal(raisins.estimated_weight_g, 2.5)
+  assert.equal(raisins.is_weight_estimated, true, 'Gram weight must be marked estimated')
+
+  // Item 4: Banana (150g)
+  const banana = result.items.find(i => i.ingredient_name.toLowerCase().includes('banana'))
+  assert.ok(banana, 'Banana must be recognized')
+  assert.equal(banana.explicit_quantity, 150)
+  assert.equal(banana.quantity_unit, 'g')
+  assert.equal(banana.estimated_weight_g, 150)
+  assert.equal(banana.is_weight_estimated, false)
+
+  // Meal totals must equal exact sum of ingredient values
+  const expectedKcal = Math.round((oats.energy_kcal + almonds.energy_kcal + raisins.energy_kcal + banana.energy_kcal) * 10) / 10
+  assert.equal(result.totals.energy_kcal, expectedKcal, 'Totals must reconcile to exact sum of ingredients')
+  assert.ok(result.disclaimer.includes('AI-generated'), 'Disclaimer must clarify AI estimates')
+})
+
+test('OpenAI Direct Analysis: "2 wheat roti with chicken gravy" with clarification questions', async () => {
+  const result = await analyzeMealDirectly('2 wheat roti with chicken gravy')
+  assert.equal(result.items.length, 2)
+
+  const roti = result.items.find(i => i.ingredient_name.toLowerCase().includes('roti'))
+  assert.ok(roti)
+  assert.equal(roti.explicit_quantity, 2)
+  assert.equal(roti.estimated_weight_g, 70)
+
+  const gravy = result.items.find(i => i.ingredient_name.toLowerCase().includes('gravy') || i.ingredient_name.toLowerCase().includes('curry'))
+  assert.ok(gravy)
+  assert.ok(gravy.clarification_questions.length > 0, 'Should include clarification questions for complete dish')
+  assert.equal(result.calculation_status, 'needs_clarification')
+})
+
+test('OpenAI Direct Analysis: "100 g roasted peanuts"', async () => {
+  const result = await analyzeMealDirectly('100 g roasted peanuts')
+  assert.equal(result.items.length, 1)
+  const peanuts = result.items[0]
+  assert.equal(peanuts.explicit_quantity, 100)
+  assert.equal(peanuts.quantity_unit, 'g')
+  assert.equal(peanuts.estimated_weight_g, 100)
+  assert.equal(peanuts.energy_kcal, 585)
+  assert.equal(peanuts.confidence, 'high')
+})
+
+test('OpenAI Direct Analysis: "150 g rice, 100 g chicken and 1 tablespoon oil"', async () => {
+  const result = await analyzeMealDirectly('150 g rice, 100 g chicken and 1 tablespoon oil')
+  assert.equal(result.items.length, 3)
+
+  const sumKcal = result.items.reduce((acc, i) => acc + i.energy_kcal, 0)
+  assert.equal(result.totals.energy_kcal, Math.round(sumKcal * 10) / 10)
+})
+
+test('OpenAI Direct Analysis: Input bounds and validation rejection', async () => {
+  // Empty text should throw
+  await assert.rejects(async () => {
+    await analyzeMealDirectly('')
+  }, /empty/)
+
+  // Excessively long text should throw
+  await assert.rejects(async () => {
+    await analyzeMealDirectly('a'.repeat(2005))
+  }, /too long/)
+
+  // validateNutritionResponse rejects negative quantities or calories
+  assert.throws(() => {
+    validateNutritionResponse({
+      items: [
+        {
+          ingredient_name: 'Rice',
+          explicit_quantity: -10,
+          quantity_unit: 'g',
+          estimated_weight_g: 100,
+          energy_kcal: 100,
+          protein_g: 2,
+          carb_g: 20,
+          fat_g: 0,
+          fibre_g: 1
+        }
+      ]
+    }, 'Rice')
+  }, /Invalid quantity/)
+
+  assert.throws(() => {
+    validateNutritionResponse({
+      items: [
+        {
+          ingredient_name: 'Rice',
+          explicit_quantity: 100,
+          quantity_unit: 'g',
+          estimated_weight_g: 100,
+          energy_kcal: -50,
+          protein_g: 2,
+          carb_g: 20,
+          fat_g: 0,
+          fibre_g: 1
+        }
+      ]
+    }, 'Rice')
+  }, /Invalid calories/)
+
+  // Reject NaN / Infinity
+  assert.throws(() => {
+    validateNutritionResponse({
+      items: [
+        {
+          ingredient_name: 'Rice',
+          explicit_quantity: NaN,
+          quantity_unit: 'g',
+          estimated_weight_g: 100,
+          energy_kcal: 100,
+          protein_g: 2,
+          carb_g: 20,
+          fat_g: 0,
+          fibre_g: 1
+        }
+      ]
+    }, 'Rice')
+  }, /Invalid quantity/)
+})
+
+test('OpenAI Direct Analysis: Rejects with configuration error if API key is missing in production', async () => {
+  const origKey = process.env.OPENAI_API_KEY
+  const origEnv = process.env.NODE_ENV
+  try {
+    delete process.env.OPENAI_API_KEY
+    process.env.NODE_ENV = 'production'
+    await assert.rejects(async () => {
+      await analyzeMealDirectly('100 g oats')
+    }, /OpenAI API key is not configured/)
+  } finally {
+    process.env.OPENAI_API_KEY = origKey
+    process.env.NODE_ENV = origEnv
+  }
 })
 
