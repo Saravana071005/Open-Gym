@@ -1,21 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { buildDailyReportDoc, CHATGPT_ANALYSIS_PROMPT } from './exportDailyReportPdf.js';
 
-describe('Daily Health Log: PDF Export Generator', () => {
-  it('generates a valid PDF document with report title, date, and 1,900 kcal target', () => {
+describe('Daily Health Log: Simplified Food & PDF Export Generator', () => {
+  it('generates a valid PDF document with report title, date, 1,900 kcal target, and simplified food entries', () => {
     const doc = buildDailyReportDoc({
       date: '2026-10-25',
       foods: [
         {
           meal_type: 'breakfast',
-          food_name: 'Rolled Oats with Almonds',
-          serving_quantity: 1,
-          serving_unit: 'serving',
-          energy_kcal: 350,
-          protein_g: 14,
-          carb_g: 52,
-          fat_g: 7,
-          notes: 'Prepared with warm water'
+          food_name: 'Rolled oats, overnight soaked',
+          serving_quantity: 100,
+          serving_unit: 'g',
+          notes: 'Soaked overnight in water'
+        },
+        {
+          meal_type: 'breakfast',
+          food_name: 'Banana',
+          serving_quantity: 150,
+          serving_unit: 'g',
+          notes: 'Medium, sliced'
         }
       ],
       water: [
@@ -44,13 +47,8 @@ describe('Daily Health Log: PDF Export Generator', () => {
         }
       ],
       totals: {
-        calories_consumed: 350,
+        food_count: 2,
         calorie_target: 1900,
-        calorie_difference: -1550,
-        calories_remaining: 1550,
-        protein_g: 14,
-        carb_g: 52,
-        fat_g: 7,
         water_ml: 500,
         water_litres: 0.5,
         total_steps: 3200,
@@ -71,17 +69,21 @@ describe('Daily Health Log: PDF Export Generator', () => {
     expect(pdfOutput.length).toBeGreaterThan(1000);
     expect(pdfOutput).toContain('openGym');
     expect(pdfOutput).toContain('1,900');
+    expect(pdfOutput).toContain('Rolled oats, overnight soaked');
+    expect(pdfOutput).toContain('Banana');
   });
 
-  it('embeds the exact verbatim ChatGPT analysis prompt in the exported document', () => {
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('Act as my fitness and nutrition data analyst.');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('MY DAILY CALORIE TARGET: 1,900 kcal.');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('1. FOOD INTAKE');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('2. WATER INTAKE');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('3. CARDIO, STEPS, AND STRENGTH TRAINING');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('4. STEPS NEEDED TO BURN THE EXCESS');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('5. FINAL DAILY REVIEW');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('Do not recommend excessive exercise or imply I must immediately burn off everything I ate.');
+  it('embeds the exact verbatim ChatGPT Nutrition and Activity Analysis Prompt in the PDF', () => {
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('Analyze my complete daily food intake, hydration, cardio, steps, and strength training using the data in this report.');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('My daily calorie target is 1,900 kcal.');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('IMPORTANT: The food table contains food names and quantities only.');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('1. FOOD AND NUTRITION');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('2. COMPARE WITH MY DAILY TARGET');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('3. WATER');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('4. ACTIVITY');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('5. STEPS EQUIVALENT TO CALORIE EXCESS');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('6. FINAL SUMMARY');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('Do not recommend excessive exercise to compensate for food intake.');
 
     const doc = buildDailyReportDoc({
       date: '2026-10-25',
@@ -89,14 +91,14 @@ describe('Daily Health Log: PDF Export Generator', () => {
       water: [],
       cardio: [],
       strength: [],
-      totals: { calories_consumed: 0, calorie_target: 1900 }
+      totals: { food_count: 0, calorie_target: 1900 }
     });
 
     const pdfOutput = doc.output();
-    expect(pdfOutput).toContain('ChatGPT');
+    expect(pdfOutput).toContain('ChatGPT Nutrition and Activity Analysis Prompt');
   });
 
-  it('handles empty logs without inserting fake data or crashing', () => {
+  it('handles empty logs without inserting fake data and marks missing data as Not recorded', () => {
     const doc = buildDailyReportDoc({
       date: '2026-10-24',
       foods: [],
@@ -104,11 +106,8 @@ describe('Daily Health Log: PDF Export Generator', () => {
       cardio: [],
       strength: [],
       totals: {
-        calories_consumed: 0,
+        food_count: 0,
         calorie_target: 1900,
-        protein_g: 0,
-        carb_g: 0,
-        fat_g: 0,
         water_ml: 0,
         water_litres: 0,
         total_steps: 0,
@@ -119,27 +118,22 @@ describe('Daily Health Log: PDF Export Generator', () => {
 
     expect(doc).toBeDefined();
     const pdfOutput = doc.output();
-    expect(pdfOutput).toContain('No entries');
+    expect(pdfOutput).toContain('Not recorded');
   });
 
-  it('correctly reports calories remaining when below 1,900 kcal', () => {
+  it('groups food items by meal in the exported food log', () => {
     const doc = buildDailyReportDoc({
       date: '2026-10-25',
-      foods: [{ meal_type: 'lunch', food_name: 'Rice & Chicken', energy_kcal: 1400 }],
-      totals: { calories_consumed: 1400, calorie_target: 1900 }
+      foods: [
+        { meal_type: 'lunch', food_name: 'Grilled Salmon', serving_quantity: 200, serving_unit: 'g' },
+        { meal_type: 'breakfast', food_name: 'Oatmeal', serving_quantity: 80, serving_unit: 'g' },
+        { meal_type: 'dinner', food_name: 'Quinoa Bowl', serving_quantity: 1, serving_unit: 'serving' }
+      ],
+      totals: { food_count: 3, calorie_target: 1900 }
     });
     const pdfOutput = doc.output();
-    expect(pdfOutput).toContain('500 kcal remaining');
-  });
-
-  it('correctly reports calories above target when exceeding 1,900 kcal without claiming body fat gain', () => {
-    const doc = buildDailyReportDoc({
-      date: '2026-10-25',
-      foods: [{ meal_type: 'dinner', food_name: 'Feast', energy_kcal: 2250 }],
-      totals: { calories_consumed: 2250, calorie_target: 1900 }
-    });
-    const pdfOutput = doc.output();
-    expect(pdfOutput).toContain('350 kcal above');
-    expect(pdfOutput).toContain('not maintenance/fat gain');
+    expect(pdfOutput).toContain('Grilled Salmon');
+    expect(pdfOutput).toContain('Oatmeal');
+    expect(pdfOutput).toContain('Quinoa Bowl');
   });
 });

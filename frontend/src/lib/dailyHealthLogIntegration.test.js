@@ -1,80 +1,56 @@
 import { describe, it, expect } from 'vitest';
 import { buildDailyReportDoc, CHATGPT_ANALYSIS_PROMPT } from './exportDailyReportPdf.js';
 
-describe('Daily Health Log: Full End-to-End Tracking & Calculations Suite', () => {
-  // Test 1: Food intake manual entry, edit, delete, and meal subtotals
-  it('handles manual food entries, portion edits, meal subtotals, and deletions', () => {
+describe('Daily Health Log: Full End-to-End Tracking Suite (Simplified Food Entry)', () => {
+  // Test 1: Simplified food intake entry, edit, and delete
+  it('handles simplified food entries (meal, food name, quantity, unit, notes) and deletions without requiring calories/macros', () => {
     let foods = [];
     const date = '2026-10-25';
 
-    // 1. Add breakfast
-    const eggEntry = {
+    // 1. Add breakfast: Rolled oats, overnight soaked
+    const oatsEntry = {
       id: 'f1',
       date,
       meal_type: 'breakfast',
-      food_name: 'Boiled Eggs',
-      serving_quantity: 2,
-      serving_unit: 'piece',
-      energy_kcal: 155,
-      protein_g: 13,
-      carb_g: 1.1,
-      fat_g: 11,
-      notes: 'Pasture raised'
+      food_name: 'Rolled oats, overnight soaked',
+      serving_quantity: 100,
+      serving_unit: 'g',
+      notes: 'Soaked overnight in water'
     };
-    foods.push(eggEntry);
+    foods.push(oatsEntry);
 
-    // 2. Add lunch
-    const riceChicken = {
+    // 2. Add breakfast: Banana
+    const bananaEntry = {
       id: 'f2',
       date,
-      meal_type: 'lunch',
-      food_name: 'Steamed Rice with Grilled Chicken',
-      serving_quantity: 1,
-      serving_unit: 'serving',
-      energy_kcal: 550,
-      protein_g: 45,
-      carb_g: 65,
-      fat_g: 8,
-      notes: 'Cooked with olive oil'
+      meal_type: 'breakfast',
+      food_name: 'Banana',
+      serving_quantity: 150,
+      serving_unit: 'g',
+      notes: 'Medium banana'
     };
-    foods.push(riceChicken);
+    foods.push(bananaEntry);
 
-    // 3. Add snack
-    const appleAlmonds = {
+    // 3. Add lunch: Grilled Chicken Breast
+    const chickenEntry = {
       id: 'f3',
       date,
-      meal_type: 'snacks',
-      food_name: 'Apple and Almonds',
-      serving_quantity: 1,
-      serving_unit: 'serving',
-      energy_kcal: 220,
-      protein_g: 6,
-      carb_g: 28,
-      fat_g: 12,
-      notes: 'Afternoon snack'
+      meal_type: 'lunch',
+      food_name: 'Grilled Chicken Breast',
+      serving_quantity: 200,
+      serving_unit: 'g',
+      notes: 'Cooked with herbs'
     };
-    foods.push(appleAlmonds);
+    foods.push(chickenEntry);
 
     expect(foods.length).toBe(3);
 
-    // Calculate totals
-    const totalCal = foods.reduce((acc, f) => acc + f.energy_kcal, 0);
-    const totalProt = foods.reduce((acc, f) => acc + f.protein_g, 0);
-    const totalCarb = foods.reduce((acc, f) => acc + f.carb_g, 0);
-    const totalFat = foods.reduce((acc, f) => acc + f.fat_g, 0);
+    // Edit quantity of oats (e.g. from 100g to 120g)
+    foods = foods.map(f => f.id === 'f1' ? { ...f, serving_quantity: 120 } : f);
+    const updatedOats = foods.find(f => f.id === 'f1');
+    expect(updatedOats.serving_quantity).toBe(120);
 
-    expect(totalCal).toBe(925);
-    expect(totalProt).toBe(64);
-    expect(totalCarb).toBe(94.1);
-    expect(totalFat).toBe(31);
-
-    // Edit quantity and calories of Boiled Eggs (e.g. from 2 to 3 eggs)
-    foods = foods.map(f => f.id === 'f1' ? { ...f, serving_quantity: 3, energy_kcal: 232.5, protein_g: 19.5, fat_g: 16.5 } : f);
-    const updatedEgg = foods.find(f => f.id === 'f1');
-    expect(updatedEgg.serving_quantity).toBe(3);
-    expect(updatedEgg.energy_kcal).toBe(232.5);
-
-    // Delete snack
+    // Delete lunch item
     foods = foods.filter(f => f.id !== 'f3');
     expect(foods.length).toBe(2);
     expect(foods.find(f => f.id === 'f3')).toBeUndefined();
@@ -177,36 +153,15 @@ describe('Daily Health Log: Full End-to-End Tracking & Calculations Suite', () =
     expect(totalStrengthDuration).toBe(35);
   });
 
-  // Test 5: Calorie target 1,900 kcal logic (below, exact, above)
-  it('correctly calculates remaining or excess calories relative to 1,900 kcal target', () => {
-    const TARGET = 1900;
-
-    // Case 1: Below target (1,450 kcal)
-    const intakeBelow = 1450;
-    const diffBelow = intakeBelow - TARGET;
-    expect(diffBelow).toBe(-450);
-    expect(Math.abs(diffBelow)).toBe(450); // 450 kcal remaining
-
-    // Case 2: Exactly at target (1,900 kcal)
-    const intakeExact = 1900;
-    const diffExact = intakeExact - TARGET;
-    expect(diffExact).toBe(0); // Target reached
-
-    // Case 3: Above target (2,250 kcal)
-    const intakeAbove = 2250;
-    const diffAbove = intakeAbove - TARGET;
-    expect(diffAbove).toBe(350); // 350 kcal above target
-  });
-
-  // Test 6: Reopening different dates
+  // Test 5: Reopening different dates
   it('supports saving and reopening records separately by date', () => {
     const store = {
       '2026-10-24': {
-        foods: [{ id: 'f_old', meal_type: 'dinner', food_name: 'Soup', energy_kcal: 300 }],
+        foods: [{ id: 'f_old', meal_type: 'dinner', food_name: 'Soup', serving_quantity: 1, serving_unit: 'bowl' }],
         water: [{ id: 'w_old', amount_ml: 1000 }]
       },
       '2026-10-25': {
-        foods: [{ id: 'f_new', meal_type: 'lunch', food_name: 'Steak', energy_kcal: 800 }],
+        foods: [{ id: 'f_new', meal_type: 'lunch', food_name: 'Steak', serving_quantity: 250, serving_unit: 'g' }],
         water: [{ id: 'w_new', amount_ml: 2000 }]
       }
     };
@@ -217,7 +172,7 @@ describe('Daily Health Log: Full End-to-End Tracking & Calculations Suite', () =
     expect(store['2026-10-25'].foods.length).toBe(1);
   });
 
-  // Test 7: Export PDF report contains all data and exact ChatGPT prompt
+  // Test 6: Export PDF report contains all data and exact ChatGPT prompt
   it('builds a complete PDF report with all user data and the exact ChatGPT prompt', () => {
     const doc = buildDailyReportDoc({
       date: '2026-10-25',
@@ -225,13 +180,9 @@ describe('Daily Health Log: Full End-to-End Tracking & Calculations Suite', () =
         {
           meal_type: 'lunch',
           food_name: 'Grilled Salmon with Quinoa',
-          serving_quantity: 1,
-          serving_unit: 'serving',
-          energy_kcal: 620,
-          protein_g: 48,
-          carb_g: 45,
-          fat_g: 22,
-          notes: 'Fresh salmon fillet'
+          serving_quantity: 200,
+          serving_unit: 'g',
+          notes: 'Fresh fillet'
         }
       ],
       water: [
@@ -261,13 +212,8 @@ describe('Daily Health Log: Full End-to-End Tracking & Calculations Suite', () =
         }
       ],
       totals: {
-        calories_consumed: 620,
+        food_count: 1,
         calorie_target: 1900,
-        calorie_difference: -1280,
-        calories_remaining: 1280,
-        protein_g: 48,
-        carb_g: 45,
-        fat_g: 22,
         water_ml: 1500,
         water_litres: 1.5,
         total_steps: 4100,
@@ -286,10 +232,10 @@ describe('Daily Health Log: Full End-to-End Tracking & Calculations Suite', () =
     const pdfStr = doc.output();
     expect(pdfStr).toContain('openGym');
     expect(pdfStr).toContain('1,900');
-    expect(pdfStr).toContain('Grilled Salmon');
+    expect(pdfStr).toContain('Grilled Salmon with Quinoa');
     expect(pdfStr).toContain('Romanian Deadlift');
-    expect(pdfStr).toContain('ChatGPT Daily Activity Analysis Prompt');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('STEPS NEEDED TO BURN THE EXCESS');
-    expect(CHATGPT_ANALYSIS_PROMPT).toContain('MY DAILY CALORIE TARGET: 1,900 kcal.');
+    expect(pdfStr).toContain('ChatGPT Nutrition and Activity Analysis Prompt');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('STEPS EQUIVALENT TO CALORIE EXCESS');
+    expect(CHATGPT_ANALYSIS_PROMPT).toContain('My daily calorie target is 1,900 kcal.');
   });
 });

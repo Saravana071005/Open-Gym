@@ -702,3 +702,73 @@ test('Daily Health Log: Empty log handling returns zeroed totals without fake da
   assert.equal(responseData.totals.water_ml, 0)
 })
 
+test('Daily Health Log: Simplified food entry without required calories or macros', async () => {
+  const userId = 'test_simplified_' + Date.now()
+  const date = '2026-10-25'
+
+  let responseData = null
+  let responseStatus = null
+  const mockJson = (res, status, data) => { responseStatus = status; responseData = data }
+  const mockSession = () => ({ id: userId, name: 'SimplifiedTester' })
+
+  // 1. Save Rolled oats, overnight soaked (100g)
+  let requestBody = {
+    date,
+    meal_type: 'breakfast',
+    food_name: 'Rolled oats, overnight soaked',
+    serving_quantity: 100,
+    serving_unit: 'g',
+    notes: 'Soaked overnight in water'
+  }
+  let routes = nutritionRoutes({ json: mockJson, readBody: async () => requestBody, readSession: mockSession })
+  await routes['POST /api/nutrition/food/save']({}, {})
+  assert.equal(responseStatus, 201)
+  assert.equal(responseData.entry.food_name, 'Rolled oats, overnight soaked')
+  assert.equal(responseData.entry.serving_quantity, 100)
+  assert.equal(responseData.entry.energy_kcal, 0)
+  assert.equal(responseData.entry.notes, 'Soaked overnight in water')
+  const food1Id = responseData.entry.id
+
+  // 2. Save Banana (150g)
+  requestBody = {
+    date,
+    meal_type: 'breakfast',
+    food_name: 'Banana',
+    serving_quantity: 150,
+    serving_unit: 'g'
+  }
+  routes = nutritionRoutes({ json: mockJson, readBody: async () => requestBody, readSession: mockSession })
+  await routes['POST /api/nutrition/food/save']({}, {})
+  assert.equal(responseStatus, 201)
+  const food2Id = responseData.entry.id
+
+  // 3. Retrieve daily health log
+  await routes['GET /api/nutrition/health-log']({ url: `http://localhost/api/nutrition/health-log?date=${date}` }, {})
+  assert.equal(responseData.foods.length, 2)
+  assert.equal(responseData.totals.food_count, 2)
+
+  // 4. Edit oats quantity to 120g
+  requestBody = {
+    id: food1Id,
+    date,
+    meal_type: 'breakfast',
+    food_name: 'Rolled oats, overnight soaked',
+    serving_quantity: 120,
+    serving_unit: 'g',
+    notes: 'Soaked with warm water'
+  }
+  routes = nutritionRoutes({ json: mockJson, readBody: async () => requestBody, readSession: mockSession })
+  await routes['POST /api/nutrition/food/save']({}, {})
+  assert.equal(responseStatus, 200)
+
+  // 5. Delete Banana
+  requestBody = { id: food2Id }
+  routes = nutritionRoutes({ json: mockJson, readBody: async () => requestBody, readSession: mockSession })
+  await routes['POST /api/nutrition/food/delete']({}, {})
+  assert.equal(responseStatus, 200)
+
+  // Clean up food1
+  requestBody = { id: food1Id }
+  await routes['POST /api/nutrition/food/delete']({}, {})
+})
+

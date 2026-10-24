@@ -21,33 +21,25 @@ const CARDIO_TYPES = ['walking', 'running', 'cycling', 'treadmill', 'HIIT', 'oth
 
 const MUSCLE_GROUPS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full Body', 'Other']
 
-// Example entries clearly marked, NOT included in user totals
+// Reference examples showing the simplified food logging format (clearly marked and not counted in user data)
 const EXAMPLE_ENTRIES = [
   {
     id: 'example-1',
     is_example: true,
     meal_type: 'breakfast',
-    food_name: 'Rolled Oats with Almonds & Banana',
-    serving_quantity: 1,
-    serving_unit: 'serving',
-    energy_kcal: 380,
-    protein_g: 14,
-    carb_g: 58,
-    fat_g: 9,
-    notes: 'Reference example: not counted in your daily totals'
+    food_name: 'Rolled oats, overnight soaked',
+    serving_quantity: 100,
+    serving_unit: 'g',
+    notes: 'Soaked overnight in water'
   },
   {
     id: 'example-2',
     is_example: true,
-    meal_type: 'lunch',
-    food_name: 'Grilled Chicken Salad with Olive Oil',
-    serving_quantity: 1,
-    serving_unit: 'serving',
-    energy_kcal: 460,
-    protein_g: 42,
-    carb_g: 12,
-    fat_g: 18,
-    notes: 'Reference example: not counted in your daily totals'
+    meal_type: 'breakfast',
+    food_name: 'Banana',
+    serving_quantity: 150,
+    serving_unit: 'g',
+    notes: 'Medium banana, sliced'
   }
 ]
 
@@ -67,7 +59,6 @@ export default function Nutrition() {
   const [strength, setStrength] = useState([])
 
   // Settings
-  const [calorieTarget, setCalorieTarget] = useState(1900)
   const [waterGoalL, setWaterGoalL] = useState(2.5)
   const [editingWaterGoal, setEditingWaterGoal] = useState(false)
   const [waterGoalDraft, setWaterGoalDraft] = useState('2.5')
@@ -92,12 +83,9 @@ export default function Nutrition() {
           setWater(res.water || [])
           setCardio(res.cardio || [])
           setStrength(res.strength || [])
-          if (res.settings) {
-            setCalorieTarget(res.settings.calorie_target != null ? res.settings.calorie_target : 1900)
-            if (res.settings.water_goal_litres != null) {
-              setWaterGoalL(res.settings.water_goal_litres)
-              setWaterGoalDraft(String(res.settings.water_goal_litres))
-            }
+          if (res.settings && res.settings.water_goal_litres != null) {
+            setWaterGoalL(res.settings.water_goal_litres)
+            setWaterGoalDraft(String(res.settings.water_goal_litres))
           }
         }
       } catch (e) {
@@ -126,10 +114,6 @@ export default function Nutrition() {
           food_name: m.name || m.food_name || 'Food entry',
           serving_quantity: m.qty || m.serving_quantity || 1,
           serving_unit: m.unit || m.serving_unit || 'g',
-          energy_kcal: m.nutrients?.calories ?? m.energy_kcal ?? 0,
-          protein_g: m.nutrients?.protein ?? m.protein_g ?? 0,
-          carb_g: m.nutrients?.carbs ?? m.carb_g ?? 0,
-          fat_g: m.nutrients?.fat ?? m.fat_g ?? 0,
           notes: m.notes || null
         }))
         setFoods(dayMeals)
@@ -189,41 +173,7 @@ export default function Nutrition() {
 
   // --- Calculations for Daily Summary ---
   const totals = useMemo(() => {
-    const foodTotals = {
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0
-    }
-
-    const subtotals = {
-      breakfast: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      lunch: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      dinner: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      snacks: { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    }
-
-    // Only count real user entries (never example entries!)
-    for (const f of foods) {
-      if (f.is_example) continue
-      const cal = Number(f.energy_kcal) || 0
-      const p = Number(f.protein_g) || 0
-      const c = Number(f.carb_g) || 0
-      const fat = Number(f.fat_g) || 0
-
-      foodTotals.calories += cal
-      foodTotals.protein += p
-      foodTotals.carbs += c
-      foodTotals.fat += fat
-
-      const mType = String(f.meal_type || 'snacks').toLowerCase()
-      if (subtotals[mType]) {
-        subtotals[mType].calories += cal
-        subtotals[mType].protein += p
-        subtotals[mType].carbs += c
-        subtotals[mType].fat += fat
-      }
-    }
+    const realFoods = foods.filter(f => !f.is_example)
 
     const waterTotalMl = water.reduce((acc, w) => acc + (Number(w.amount_ml) || 0), 0)
     const waterLitres = Math.round((waterTotalMl / 1000) * 100) / 100
@@ -251,23 +201,9 @@ export default function Nutrition() {
     const totalWorkoutDurationMin = cardioDurationMin + strengthDurationMin
     const totalExerciseCaloriesBurned = cardioCaloriesBurned + strengthCaloriesBurned
 
-    const target = 1900
-    const consumed = Math.round(foodTotals.calories * 10) / 10
-    const diff = Math.round((consumed - target) * 10) / 10
-
     return {
-      calories_consumed: consumed,
-      calorie_target: target,
-      calorie_difference: diff,
-      is_below_target: diff < 0,
-      is_exact_target: diff === 0,
-      is_above_target: diff > 0,
-      calories_remaining: diff < 0 ? Math.abs(diff) : 0,
-      calories_above: diff > 0 ? diff : 0,
-      protein_g: Math.round(foodTotals.protein * 10) / 10,
-      carb_g: Math.round(foodTotals.carbs * 10) / 10,
-      fat_g: Math.round(foodTotals.fat * 10) / 10,
-      subtotals,
+      food_count: realFoods.length,
+      calorie_target: 1900,
       water_ml: waterTotalMl,
       water_litres: waterLitres,
       water_goal_litres: waterGoalL,
@@ -287,10 +223,10 @@ export default function Nutrition() {
     setDate(cur.toISOString().slice(0, 10))
   }
 
-  // --- Food Operations ---
+  // --- Simplified Food Operations ---
   const handleOpenFoodModal = (existing = null) => {
     openSheet(close => (
-      <FoodFormModal
+      <SimplifiedFoodFormModal
         date={date}
         existing={existing}
         onSave={async (savedEntry) => {
@@ -522,7 +458,7 @@ export default function Nutrition() {
             {t('Daily Health Log')}
           </h1>
           <div className="sub" style={{ fontSize: '0.88rem', color: 'var(--muted)', marginTop: 4 }}>
-            {t('Daily food and activity tracking with 1,900 kcal target and ChatGPT report export')}
+            {t('Manual food and activity logging with 1,900 kcal target and ChatGPT PDF report')}
           </div>
         </div>
 
@@ -587,7 +523,7 @@ export default function Nutrition() {
               className={`btn small ${showExamples ? 'acc' : ''}`}
               onClick={() => setShowExamples(!showExamples)}
               style={{ padding: '4px 10px', fontSize: '0.85rem' }}
-              title={t('Toggle illustrative example entries (never counted in totals)')}
+              title={t('Toggle reference example entries')}
             >
               <Icon name="lightbulb" />
               <span style={{ marginLeft: 4 }}>{showExamples ? t('Hide Examples') : t('Show Examples')}</span>
@@ -596,11 +532,11 @@ export default function Nutrition() {
         </div>
       </div>
 
-      {/* SECTION E: Daily Summary Card */}
+      {/* SECTION 5: Daily Summary Interface */}
       <div className="card" style={{ marginBottom: 24, border: '1px solid var(--border)', background: 'var(--surface)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--acc)', fontSize: '1.2rem' }}><Icon name="flame" /></span>
+            <span style={{ color: 'var(--acc)', fontSize: '1.2rem' }}><Icon name="chart" /></span>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>{t('Daily Summary')}</h2>
           </div>
           <span className="small muted" style={{ fontWeight: 500 }}>
@@ -608,97 +544,59 @@ export default function Nutrition() {
           </span>
         </div>
 
-        {/* Calorie Intake vs 1,900 kcal Target Meter */}
-        <div style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '16px', marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
-            <div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
-                {t('Calories Consumed')}
-              </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--fg)', lineHeight: 1.1 }}>
-                {totals.calories_consumed} <span style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--muted)' }}>/ 1,900 kcal</span>
-              </div>
-            </div>
-
-            {/* Target Status Logic */}
-            <div style={{ textAlign: 'right' }}>
-              {totals.is_below_target && (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'color-mix(in srgb,var(--green) 16%,transparent)', color: 'var(--green)', padding: '6px 12px', borderRadius: 20, fontWeight: 700, fontSize: '0.92rem' }}>
-                  <Icon name="check" />
-                  <span>{totals.calories_remaining} kcal {t('remaining to reach 1,900 target')}</span>
-                </div>
-              )}
-              {totals.is_exact_target && (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'color-mix(in srgb,var(--blue) 16%,transparent)', color: 'var(--blue)', padding: '6px 12px', borderRadius: 20, fontWeight: 700, fontSize: '0.92rem' }}>
-                  <Icon name="checkCircle" />
-                  <span>{t('1,900 kcal target reached exactly')}</span>
-                </div>
-              )}
-              {totals.is_above_target && (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'color-mix(in srgb,var(--orange) 16%,transparent)', color: 'var(--orange)', padding: '6px 12px', borderRadius: 20, fontWeight: 700, fontSize: '0.92rem' }}>
-                  <Icon name="info" />
-                  <span>{totals.calories_above} kcal {t('above 1,900 kcal target')}</span>
-                </div>
-              )}
+        {/* Overview Stats Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
+          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Food Entries')}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>
+              {totals.food_count} <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>{t('items')}</span>
             </div>
           </div>
-
-          {/* Progress Bar */}
-          <div style={{ height: 8, borderRadius: 4, background: 'var(--surface-3)', marginTop: 12, overflow: 'hidden' }}>
-            <div
-              style={{
-                height: '100%',
-                width: `${Math.min(100, Math.round((totals.calories_consumed / 1900) * 100))}%`,
-                background: totals.is_above_target ? 'var(--orange)' : 'var(--acc)',
-                borderRadius: 4,
-                transition: 'width 0.3s ease'
-              }}
-            />
+          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Water Consumed')}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--blue)', marginTop: 2 }}>
+              {totals.water_litres} L <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>/ {waterGoalL} L</span>
+            </div>
           </div>
-
-          {/* Non-judgmental explanation */}
-          <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 10, lineHeight: 1.4 }}>
-            {t('Tracking note: The 1,900 kcal target is a personal tracking goal, not necessarily maintenance requirement. Exceeding 1,900 kcal does not automatically indicate body-fat gain.')}
+          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Cardio Duration')}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--orange)', marginTop: 2 }}>
+              {totals.cardio_duration_min} <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>min</span>
+            </div>
+          </div>
+          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Strength Exercises')}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--purple)', marginTop: 2 }}>
+              {strength.length} <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>{t('exercises')}</span>
+            </div>
           </div>
         </div>
 
-        {/* Macro Breakdown Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
-          <div style={{ background: 'var(--surface-2)', padding: '10px 12px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Protein')}</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>{totals.protein_g}g</div>
-          </div>
-          <div style={{ background: 'var(--surface-2)', padding: '10px 12px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Carbohydrates')}</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>{totals.carb_g}g</div>
-          </div>
-          <div style={{ background: 'var(--surface-2)', padding: '10px 12px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Fat')}</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>{totals.fat_g}g</div>
-          </div>
-          <div style={{ background: 'var(--surface-2)', padding: '10px 12px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Water Consumed')}</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--blue)', marginTop: 2 }}>{totals.water_litres} L</div>
+        {/* Tracking Note on 1,900 kcal Target */}
+        <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <span style={{ color: 'var(--acc)', fontSize: '1.1rem', marginTop: 1 }}><Icon name="info" /></span>
+          <div style={{ fontSize: '0.85rem', lineHeight: 1.45, color: 'var(--muted)' }}>
+            <strong style={{ color: 'var(--fg)' }}>{t('Daily Calorie Target: 1,900 kcal')}</strong>
+            <br />
+            {t('The live website records food names and quantities without calculating calories or macros. When you click "Export Daily Report PDF", full nutritional estimates, target comparisons, and hydration/activity analyses are evaluated by ChatGPT via the embedded prompt.')}
           </div>
         </div>
 
         {/* Activity & Workout Stats Strip */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: '0.88rem', color: 'var(--muted)' }}>
-          <span>{t('Cardio Duration')}: <strong style={{ color: 'var(--fg)' }}>{totals.cardio_duration_min} min</strong></span>
-          <span>•</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: '0.88rem', color: 'var(--muted)' }}>
           <span>{t('Total Workout Duration')}: <strong style={{ color: 'var(--fg)' }}>{totals.total_workout_duration_min} min</strong></span>
           <span>•</span>
-          <span>{t('Total Steps')}: <strong style={{ color: 'var(--fg)' }}>{totals.total_steps ? totals.total_steps.toLocaleString() : 0}</strong></span>
+          <span>{t('Total Steps')}: <strong style={{ color: 'var(--fg)' }}>{totals.total_steps ? totals.total_steps.toLocaleString() : t('Not recorded')}</strong></span>
           {totals.exercise_calories_burned > 0 && (
             <>
               <span>•</span>
-              <span>{t('Exercise Calories (est)')}: <strong style={{ color: 'var(--fg)' }}>{totals.exercise_calories_burned} kcal</strong></span>
+              <span>{t('Exercise Calories (user estimate)')}: <strong style={{ color: 'var(--fg)' }}>{totals.exercise_calories_burned} kcal</strong></span>
             </>
           )}
         </div>
       </div>
 
-      {/* SECTION A: Food Intake Table */}
+      {/* SECTION 1 & 2: Food Intake Log Table (Simplified) */}
       <div className="card" style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -716,43 +614,26 @@ export default function Nutrition() {
           </Button>
         </div>
 
-        {/* Meal Subtotals Ribbon */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 16 }}>
-          {MEAL_TYPES.map(m => {
-            const sub = totals.subtotals[m.id] || { calories: 0, protein: 0, carbs: 0, fat: 0 }
-            return (
-              <div key={m.id} style={{ background: 'var(--surface-2)', padding: '8px 10px', borderRadius: 8, borderLeft: `3px solid ${m.color}` }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--fg)' }}>{t(m.label)}</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: m.color, marginTop: 2 }}>{Math.round(sub.calories)} kcal</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 2 }}>
-                  P: {Math.round(sub.protein)}g | C: {Math.round(sub.carbs)}g | F: {Math.round(sub.fat)}g
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Food Table */}
+        {/* Food Table (Meal, Food Name, Quantity, Unit, Notes, Actions) */}
         {displayFoods.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', background: 'var(--surface-2)', borderRadius: 10 }}>
             <Icon name="nutrition" style={{ fontSize: '2rem', marginBottom: 8, display: 'inline-block' }} />
             <div style={{ fontWeight: 600 }}>{t('No food entries recorded for this date')}</div>
-            <div style={{ fontSize: '0.85rem', marginTop: 4 }}>{t('Click "Add Food" to manually record food, quantities, and macronutrients.')}</div>
+            <div style={{ fontSize: '0.85rem', marginTop: 4 }}>
+              {t('Click "Add Food" to record foods, quantities, and units (e.g. 100 g rolled oats, 150 g banana).')}
+            </div>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--border)', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '8px 10px' }}>{t('Meal')}</th>
-                  <th style={{ padding: '8px 10px' }}>{t('Food Name')}</th>
-                  <th style={{ padding: '8px 10px' }}>{t('Quantity')}</th>
-                  <th style={{ padding: '8px 10px' }}>{t('Calories')}</th>
-                  <th style={{ padding: '8px 10px' }}>{t('Protein')}</th>
-                  <th style={{ padding: '8px 10px' }}>{t('Carbs')}</th>
-                  <th style={{ padding: '8px 10px' }}>{t('Fat')}</th>
-                  <th style={{ padding: '8px 10px' }}>{t('Notes')}</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>{t('Actions')}</th>
+                  <th style={{ padding: '10px' }}>{t('Meal')}</th>
+                  <th style={{ padding: '10px' }}>{t('Food Name')}</th>
+                  <th style={{ padding: '10px' }}>{t('Quantity')}</th>
+                  <th style={{ padding: '10px' }}>{t('Unit')}</th>
+                  <th style={{ padding: '10px' }}>{t('Notes')}</th>
+                  <th style={{ padding: '10px', textAlign: 'right' }}>{t('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -764,7 +645,7 @@ export default function Nutrition() {
                       background: f.is_example ? 'color-mix(in srgb,var(--surface-2) 60%,transparent)' : 'transparent'
                     }}
                   >
-                    <td style={{ padding: '10px', verticalAlign: 'middle' }}>
+                    <td style={{ padding: '12px 10px', verticalAlign: 'middle' }}>
                       <span
                         style={{
                           display: 'inline-block',
@@ -779,7 +660,7 @@ export default function Nutrition() {
                         {f.meal_type}
                       </span>
                     </td>
-                    <td style={{ padding: '10px', fontWeight: 600, verticalAlign: 'middle' }}>
+                    <td style={{ padding: '12px 10px', fontWeight: 600, verticalAlign: 'middle' }}>
                       {f.food_name}
                       {f.is_example && (
                         <span style={{ marginLeft: 6, fontSize: '0.72rem', background: 'var(--surface-3)', color: 'var(--muted)', padding: '2px 6px', borderRadius: 4 }}>
@@ -787,25 +668,22 @@ export default function Nutrition() {
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '10px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                      {f.serving_quantity} {f.serving_unit}
+                    <td style={{ padding: '12px 10px', verticalAlign: 'middle', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                      {f.serving_quantity}
                     </td>
-                    <td style={{ padding: '10px', fontWeight: 700, verticalAlign: 'middle' }}>
-                      {f.energy_kcal} kcal
+                    <td style={{ padding: '12px 10px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                      {f.serving_unit}
                     </td>
-                    <td style={{ padding: '10px', verticalAlign: 'middle' }}>{f.protein_g}g</td>
-                    <td style={{ padding: '10px', verticalAlign: 'middle' }}>{f.carb_g}g</td>
-                    <td style={{ padding: '10px', verticalAlign: 'middle' }}>{f.fat_g}g</td>
-                    <td style={{ padding: '10px', color: 'var(--muted)', fontSize: '0.85rem', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                    <td style={{ padding: '12px 10px', color: 'var(--muted)', fontSize: '0.85rem', verticalAlign: 'middle' }}>
                       {f.notes || '-'}
                     </td>
-                    <td style={{ padding: '10px', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '12px 10px', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                       {!f.is_example && (
                         <>
                           <button
                             className="iconbtn"
                             onClick={() => handleOpenFoodModal(f)}
-                            style={{ width: 28, height: 28, marginRight: 4 }}
+                            style={{ width: 30, height: 30, marginRight: 4 }}
                             aria-label="Edit food entry"
                           >
                             <Icon name="pencil" />
@@ -813,7 +691,7 @@ export default function Nutrition() {
                           <button
                             className="iconbtn danger"
                             onClick={() => handleDeleteFood(f)}
-                            style={{ width: 28, height: 28 }}
+                            style={{ width: 30, height: 30 }}
                             aria-label="Delete food entry"
                           >
                             <Icon name="trash" />
@@ -825,14 +703,12 @@ export default function Nutrition() {
                 ))}
               </tbody>
               <tfoot>
-                <tr style={{ background: 'var(--surface-2)', fontWeight: 700 }}>
-                  <td colSpan={3} style={{ padding: '10px' }}>{t('Total Real Intake')}</td>
-                  <td style={{ padding: '10px', color: 'var(--acc)' }}>{totals.calories_consumed} kcal</td>
-                  <td style={{ padding: '10px' }}>{totals.protein_g}g</td>
-                  <td style={{ padding: '10px' }}>{totals.carb_g}g</td>
-                  <td style={{ padding: '10px' }}>{totals.fat_g}g</td>
-                  <td colSpan={2} style={{ padding: '10px', fontSize: '0.82rem', color: 'var(--muted)' }}>
-                    {totals.is_below_target ? `${totals.calories_remaining} kcal to target` : `${totals.calories_above} kcal above`}
+                <tr style={{ background: 'var(--surface-2)', fontWeight: 600 }}>
+                  <td colSpan={2} style={{ padding: '10px' }}>
+                    {t('Total Foods Recorded')}: {totals.food_count} {t('items')}
+                  </td>
+                  <td colSpan={4} style={{ padding: '10px', textAlign: 'right', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                    {t('Target: 1,900 kcal | Complete nutrition breakdown estimated in exported PDF')}
                   </td>
                 </tr>
               </tfoot>
@@ -1198,15 +1074,16 @@ export default function Nutrition() {
 
 /* ============================ MODALS ============================ */
 
-function FoodFormModal({ date, existing, onSave }) {
-  const [mealType, setMealType] = useState(existing?.meal_type || 'lunch')
+/**
+ * Simplified Food Entry Form Modal:
+ * Contains only Meal, Food Name, Quantity, Unit, and optional Notes.
+ * Completely removes calories and macronutrient inputs.
+ */
+function SimplifiedFoodFormModal({ date, existing, onSave }) {
+  const [mealType, setMealType] = useState(existing?.meal_type || 'breakfast')
   const [foodName, setFoodName] = useState(existing?.food_name || '')
-  const [quantity, setQuantity] = useState(existing?.serving_quantity != null ? String(existing.serving_quantity) : '1')
+  const [quantity, setQuantity] = useState(existing?.serving_quantity != null ? String(existing.serving_quantity) : '100')
   const [unit, setUnit] = useState(existing?.serving_unit || 'g')
-  const [calories, setCalories] = useState(existing?.energy_kcal != null ? String(existing.energy_kcal) : '')
-  const [protein, setProtein] = useState(existing?.protein_g != null ? String(existing.protein_g) : '')
-  const [carbs, setCarbs] = useState(existing?.carb_g != null ? String(existing.carb_g) : '')
-  const [fat, setFat] = useState(existing?.fat_g != null ? String(existing.fat_g) : '')
   const [notes, setNotes] = useState(existing?.notes || '')
   const [err, setErr] = useState('')
 
@@ -1216,8 +1093,8 @@ function FoodFormModal({ date, existing, onSave }) {
       setErr('Please enter food name')
       return
     }
-    if (calories === '' || isNaN(parseFloat(calories))) {
-      setErr('Please enter food calories (manual entry)')
+    if (quantity === '' || isNaN(parseFloat(quantity)) || parseFloat(quantity) <= 0) {
+      setErr('Please enter a valid positive quantity')
       return
     }
 
@@ -1226,12 +1103,8 @@ function FoodFormModal({ date, existing, onSave }) {
       date,
       meal_type: mealType,
       food_name: foodName.trim(),
-      serving_quantity: Math.max(0.1, parseFloat(quantity) || 1),
+      serving_quantity: parseFloat(quantity),
       serving_unit: unit,
-      energy_kcal: Math.max(0, parseFloat(calories) || 0),
-      protein_g: Math.max(0, parseFloat(protein) || 0),
-      carb_g: Math.max(0, parseFloat(carbs) || 0),
-      fat_g: Math.max(0, parseFloat(fat) || 0),
       notes: notes.trim() || null
     }
 
@@ -1250,10 +1123,10 @@ function FoodFormModal({ date, existing, onSave }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 14 }}>
         <div>
           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
-            {t('Meal')}
+            {t('Meal *')}
           </label>
           <select
             value={mealType}
@@ -1273,7 +1146,7 @@ function FoodFormModal({ date, existing, onSave }) {
           <input
             type="text"
             required
-            placeholder="e.g. Scrambled Eggs, Brown Rice"
+            placeholder="e.g. Rolled oats, overnight soaked"
             value={foodName}
             onChange={e => setFoodName(e.target.value)}
             style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}
@@ -1281,24 +1154,26 @@ function FoodFormModal({ date, existing, onSave }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div>
           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
-            {t('Quantity')}
+            {t('Quantity *')}
           </label>
           <input
             type="number"
             step="any"
             min="0.1"
+            required
+            placeholder="e.g. 100"
             value={quantity}
             onChange={e => setQuantity(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}
+            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontWeight: 600 }}
           />
         </div>
 
         <div>
           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
-            {t('Unit')}
+            {t('Unit *')}
           </label>
           <select
             value={unit}
@@ -1312,73 +1187,13 @@ function FoodFormModal({ date, existing, onSave }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}>
-        <div>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
-            {t('Calories (kcal) *')}
-          </label>
-          <input
-            type="number"
-            step="any"
-            min="0"
-            required
-            placeholder="0"
-            value={calories}
-            onChange={e => setCalories(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontWeight: 700 }}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
-            {t('Protein (g)')}
-          </label>
-          <input
-            type="number"
-            step="any"
-            min="0"
-            placeholder="0"
-            value={protein}
-            onChange={e => setProtein(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
-            {t('Carbs (g)')}
-          </label>
-          <input
-            type="number"
-            step="any"
-            min="0"
-            placeholder="0"
-            value={carbs}
-            onChange={e => setCarbs(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
-            {t('Fat (g)')}
-          </label>
-          <input
-            type="number"
-            step="any"
-            min="0"
-            placeholder="0"
-            value={fat}
-            onChange={e => setFat(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}
-          />
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 18 }}>
         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>
           {t('Notes (optional)')}
         </label>
         <input
           type="text"
-          placeholder="e.g. homemade, with 1 tsp oil, cooked"
+          placeholder="e.g. Soaked overnight in water, raw, boiled"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}
