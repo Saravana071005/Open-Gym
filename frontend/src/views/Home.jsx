@@ -75,7 +75,7 @@ export default function Home() {
 
   const todayMeals = (S.meals || []).filter(m => m.d === todayISO())
   const todayCalories = Math.round(todayMeals.reduce((acc, m) => acc + (m.nutrients?.calories || 0), 0))
-  const targetCalories = S.nutritionTargets?.calories || 2000
+  const targetCalories = S.nutritionTargets?.calorie || S.nutritionTargets?.calories || 1900
   const calPercent = Math.min(100, Math.round((todayCalories / targetCalories) * 100))
   const todayProtein = Math.round(todayMeals.reduce((acc, m) => acc + (m.nutrients?.protein || 0), 0))
   const targetProtein = S.nutritionTargets?.protein || 140
@@ -121,7 +121,7 @@ export default function Home() {
           <span className="lrow-i" style={{ background: 'var(--acc)', width: 28, height: 28, fontSize: 14 }}>
             <Icon name="nutrition" />
           </span>
-          <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{t('Nutrition')}</h2>
+          <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{t('Daily Health Log')}</h2>
         </div>
         <span className="tag acc">{t('Track')} &rarr;</span>
       </div>

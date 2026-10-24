@@ -92,7 +92,7 @@ export default function Sidebar({ onStart }) {
         <NavItem k="home" icon="house" to="/home" label={t('Home')} />
         <NavItem k="workout" icon={S.active ? "play" : "dumbbell"} to="/workout" label={t('Workout')} badge={S.active ? '●' : null} />
         <NavItem k="plan" icon="calendar" to="/plan" label={t('Plan')} />
-        <NavItem k="nutrition" icon="nutrition" to="/nutrition" label={t('Nutrition')} />
+        <NavItem k="nutrition" icon="nutrition" to="/nutrition" label={t('Daily Health Log')} />
         <NavItem k="library" icon="list" to="/library" label={t('Exercises')} />
         <NavItem k="stats" icon="chart" to="/stats" label={t('Stats')} />
         <NavItem k="history" icon="history" to="/history" label={t('History')} />

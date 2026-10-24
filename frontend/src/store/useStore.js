@@ -18,7 +18,7 @@ export const DEF = {
   reminder: { on: false, time: '08:00', tz: null }, effort: null,
   coach: null,
   favorites: [],
-  nutritionTargets: { calorie: 2000, protein: 140, carb: 220, fat: 65, fibre: 30, diet: 'all' },
+  nutritionTargets: { calorie: 1900, calories: 1900, protein: 140, carb: 220, carbs: 220, fat: 65, fibre: 30, diet: 'all', waterGoal: 2.5 },
   meals: []
 }
 const clone = o => JSON.parse(JSON.stringify(o))

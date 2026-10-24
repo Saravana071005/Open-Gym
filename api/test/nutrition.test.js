@@ -2,7 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 process.env.NODE_ENV = 'test'
-process.env.GEMINI_API_KEY = 'mock-key'
 
 import {
   getFoodById,
@@ -329,228 +328,377 @@ test('Phase 10: Invalid quantity rejection and ghost card prevention', () => {
 })
 
 /* =========================================================================
- * Google Gemini Direct Nutrition Analysis Tests (@google/genai Integration)
+ * Daily Health Log & Activity Tracking Tests (1,900 kcal Target)
  * ========================================================================= */
 import {
-  analyzeMealWithGemini,
-  analyzeMealDirectly,
-  validateAndNormalizeNutritionResponse,
-  getMockNutritionAnalysis,
-  mapGeminiError
-} from '../nutrition/gemini.js'
+  getWaterLogs,
+  addWaterLog,
+  deleteWaterLog,
+  getCardioLogs,
+  addCardioLog,
+  updateCardioLog,
+  deleteCardioLog,
+  getStrengthLogs,
+  addStrengthLog,
+  updateStrengthLog,
+  deleteStrengthLog,
+  getDailyHealthSettings,
+  setDailyHealthSettings
+} from '../nutrition/db.js'
+import { nutritionRoutes } from '../nutrition/routes.js'
 
-test('Gemini Direct Analysis: 1. "100 g oats"', async () => {
-  const result = await analyzeMealWithGemini('100 g oats')
-  assert.ok(result, 'Result should be returned')
-  assert.equal(result.items.length, 1, 'Single ingredient should produce 1 item')
-  const item = result.items[0]
-  assert.equal(item.foodName, 'Rolled Oats')
-  assert.equal(item.quantity, 100)
-  assert.equal(item.unit, 'g')
-  assert.equal(item.estimatedGrams, 100)
-  assert.equal(item.calories, 389)
-  assert.equal(item.protein, 16.9)
-  assert.equal(item.carbohydrates, 66.3)
-  assert.equal(item.fat, 6.9)
-  assert.equal(item.fibre, 10.6)
-  assert.equal(result.totals.calories, 389)
-  assert.equal(result.isEstimate, true)
+test('Daily Health Log: Manual food intake tracking with custom macros', () => {
+  const userId = 'test_user_health_1'
+  const date = '2026-10-25'
+
+  // Add 100g oats with manually entered macros
+  const oats = addMealLog({
+    id: 'food_1',
+    user_id: userId,
+    date,
+    meal_type: 'breakfast',
+    food_name: 'Rolled Oats',
+    serving_quantity: 100,
+    serving_unit: 'g',
+    serving_grams: 100,
+    energy_kcal: 389,
+    protein_g: 16.9,
+    carb_g: 66.3,
+    fat_g: 6.9,
+    fibre_g: 10.6,
+    notes: 'Breakfast oats'
+  })
+
+  // Add 2 boiled eggs manually
+  const eggs = addMealLog({
+    id: 'food_2',
+    user_id: userId,
+    date,
+    meal_type: 'breakfast',
+    food_name: 'Boiled Eggs',
+    serving_quantity: 2,
+    serving_unit: 'piece',
+    serving_grams: 100,
+    energy_kcal: 155.6,
+    protein_g: 12.6,
+    carb_g: 1.2,
+    fat_g: 10.6,
+    fibre_g: 0,
+    notes: 'Hard-boiled'
+  })
+
+  const logs = getMealLogs(userId, date)
+  assert.equal(logs.length, 2)
+
+  // Verify manual values are preserved exactly
+  assert.equal(logs[0].energy_kcal, 389)
+  assert.equal(logs[0].notes, 'Breakfast oats')
+  assert.equal(logs[1].energy_kcal, 155.6)
+
+  // Update an entry's quantity & calories manually
+  updateMealLog('food_1', userId, {
+    serving_quantity: 150,
+    serving_grams: 150,
+    energy_kcal: 583.5,
+    protein_g: 25.3
+  })
+
+  const updated = getMealLogs(userId, date).find(m => m.id === 'food_1')
+  assert.equal(updated.serving_quantity, 150)
+  assert.equal(updated.energy_kcal, 583.5)
+
+  // Delete an entry
+  const deleted = deleteMealLog('food_2', userId)
+  assert.equal(deleted, true)
+  assert.equal(getMealLogs(userId, date).length, 1)
+
+  // Clean up
+  deleteMealLog('food_1', userId)
 })
 
-test('Gemini Direct Analysis: 2. "200 g oats" (increasing quantity changes nutrition proportionally)', async () => {
-  const res100 = await analyzeMealWithGemini('100 g oats')
-  const res200 = await analyzeMealWithGemini('200 g oats')
+test('Daily Health Log: Water intake tracker with daily goal', () => {
+  const userId = 'test_user_water_1'
+  const date = '2026-10-25'
 
-  assert.equal(res200.items.length, 1)
-  const item200 = res200.items[0]
-  assert.equal(item200.quantity, 200)
-  assert.equal(item200.calories, 778)
-  assert.equal(item200.protein, 33.8)
-  assert.equal(item200.carbohydrates, 132.6)
+  // Add multiple water entries for the day
+  addWaterLog({
+    id: 'water_1',
+    user_id: userId,
+    date,
+    amount_ml: 500,
+    unit: 'ml',
+    notes: 'Morning glass'
+  })
 
-  // Verify proportional scaling: doubling quantity doubles calories
-  assert.equal(Math.round(item200.calories / res100.items[0].calories), 2)
-  assert.equal(res200.totals.calories, item200.calories)
+  addWaterLog({
+    id: 'water_2',
+    user_id: userId,
+    date,
+    amount_ml: 750,
+    unit: 'ml',
+    notes: 'Workout bottle'
+  })
+
+  addWaterLog({
+    id: 'water_3',
+    user_id: userId,
+    date,
+    amount_ml: 1000,
+    unit: 'ml',
+    notes: 'Afternoon hydration'
+  })
+
+  const waterList = getWaterLogs(userId, date)
+  assert.equal(waterList.length, 3, 'Should record multiple water entries without duplicates')
+
+  const totalWaterMl = waterList.reduce((acc, w) => acc + w.amount_ml, 0)
+  assert.equal(totalWaterMl, 2250, 'Total water consumed should be 2250 ml')
+
+  // Goal of 2.5 L = 2500 ml -> 250 ml remaining
+  const waterGoalMl = 2500
+  const remainingMl = Math.max(0, waterGoalMl - totalWaterMl)
+  assert.equal(remainingMl, 250, 'Remaining amount to reach goal is 250 ml')
+
+  // Delete an entry
+  deleteWaterLog('water_1', userId)
+  assert.equal(getWaterLogs(userId, date).length, 2)
+
+  // Clean up
+  deleteWaterLog('water_2', userId)
+  deleteWaterLog('water_3', userId)
 })
 
-test('Gemini Direct Analysis: 3. "2 boiled eggs"', async () => {
-  const result = await analyzeMealWithGemini('2 boiled eggs')
-  assert.equal(result.items.length, 1)
-  const egg = result.items[0]
-  assert.equal(egg.foodName, 'Boiled Eggs')
-  assert.equal(egg.quantity, 2)
-  assert.equal(egg.unit, 'piece')
-  assert.equal(egg.preparation, 'boiled')
-  assert.equal(egg.estimatedGrams, 100)
-  assert.equal(egg.calories, 155.6)
-  assert.equal(egg.protein, 12.6)
-  assert.equal(egg.fat, 10.6)
-  assert.equal(result.totals.calories, 155.6)
+test('Daily Health Log: Cardio activity log with duration, distance, steps, and optional calories', () => {
+  const userId = 'test_user_cardio_1'
+  const date = '2026-10-25'
+
+  // Morning walk
+  addCardioLog({
+    id: 'cardio_1',
+    user_id: userId,
+    date,
+    activity_type: 'walking',
+    duration_min: 30,
+    distance_km: 2.5,
+    steps: 3500,
+    calories_burned: 140,
+    notes: 'Brisk park walk'
+  })
+
+  // Evening treadmill
+  addCardioLog({
+    id: 'cardio_2',
+    user_id: userId,
+    date,
+    activity_type: 'treadmill',
+    duration_min: 20,
+    distance_km: 3.0,
+    steps: 3200,
+    calories_burned: 210,
+    notes: 'Interval incline'
+  })
+
+  const cardioList = getCardioLogs(userId, date)
+  assert.equal(cardioList.length, 2)
+
+  const totalCardioMin = cardioList.reduce((acc, c) => acc + c.duration_min, 0)
+  assert.equal(totalCardioMin, 50)
+
+  const totalSteps = cardioList.reduce((acc, c) => acc + (c.steps || 0), 0)
+  assert.equal(totalSteps, 6700)
+
+  // Update session
+  updateCardioLog('cardio_1', userId, {
+    activity_type: 'walking',
+    duration_min: 40,
+    distance_km: 3.2,
+    steps: 4500,
+    calories_burned: 180,
+    notes: 'Extended walk'
+  })
+
+  const updated = getCardioLogs(userId, date).find(c => c.id === 'cardio_1')
+  assert.equal(updated.duration_min, 40)
+  assert.equal(updated.steps, 4500)
+
+  // Clean up
+  deleteCardioLog('cardio_1', userId)
+  deleteCardioLog('cardio_2', userId)
 })
 
-test('Gemini Direct Analysis: 4. "200 g overnight-soaked oats with 5 almonds and 5 grapes" (exact multi-ingredient decomposition)', async () => {
-  const input = '200 g overnight-soaked oats with 5 almonds and 5 grapes'
-  const result = await analyzeMealWithGemini(input)
+test('Daily Health Log: Strength workout log with exercises, sets, reps, and weights', () => {
+  const userId = 'test_user_strength_1'
+  const date = '2026-10-25'
 
-  assert.ok(result)
-  // Must separate into exactly 3 distinct items
-  assert.equal(result.items.length, 3, 'Must separate into exactly 3 distinct ingredients')
+  // Barbell Bench Press
+  addStrengthLog({
+    id: 'strength_1',
+    user_id: userId,
+    date,
+    exercise_name: 'Barbell Bench Press',
+    muscle_group: 'Chest',
+    sets: 4,
+    reps: 8,
+    weight_kg: 80,
+    duration_min: 20,
+    calories_burned: 90,
+    notes: 'RPE 8'
+  })
 
-  // Verify canonical food names do NOT contain the full sentence
-  for (const item of result.items) {
-    assert.notEqual(item.foodName.trim().toLowerCase(), input.trim().toLowerCase())
+  // Incline Dumbbell Press
+  addStrengthLog({
+    id: 'strength_2',
+    user_id: userId,
+    date,
+    exercise_name: 'Incline Dumbbell Press',
+    muscle_group: 'Upper Chest',
+    sets: 3,
+    reps: 10,
+    weight_kg: 26,
+    duration_min: 15,
+    calories_burned: 65,
+    notes: 'Controlled eccentric'
+  })
+
+  const strengthList = getStrengthLogs(userId, date)
+  assert.equal(strengthList.length, 2)
+
+  const totalWorkoutMin = strengthList.reduce((acc, s) => acc + (s.duration_min || 0), 0)
+  assert.equal(totalWorkoutMin, 35)
+
+  // Update
+  updateStrengthLog('strength_1', userId, {
+    exercise_name: 'Barbell Bench Press',
+    muscle_group: 'Chest',
+    sets: 4,
+    reps: 10,
+    weight_kg: 82.5,
+    duration_min: 22,
+    calories_burned: 100,
+    notes: 'PR set'
+  })
+
+  const updated = getStrengthLogs(userId, date).find(s => s.id === 'strength_1')
+  assert.equal(updated.reps, 10)
+  assert.equal(updated.weight_kg, 82.5)
+
+  // Clean up
+  deleteStrengthLog('strength_1', userId)
+  deleteStrengthLog('strength_2', userId)
+})
+
+test('Daily Health Log: 1,900 kcal target calculations (below, exact, and above target)', async () => {
+  const userId = 'test_user_target_1900'
+  const date = '2026-10-25'
+
+  // Configure daily health settings with 1,900 kcal target
+  setDailyHealthSettings(userId, { calorie_target: 1900, water_goal_litres: 2.5 })
+
+  // Mock routes helper
+  let responseData = null
+  let responseStatus = null
+  const mockJson = (res, status, data) => {
+    responseStatus = status
+    responseData = data
   }
+  const mockSession = () => ({ id: userId, name: 'Tester' })
+  const routes = nutritionRoutes({ json: mockJson, readBody: async () => ({}), readSession: mockSession })
 
-  // 1. Oats: 200g
-  const oats = result.items.find(i => i.foodName.toLowerCase().includes('oat'))
-  assert.ok(oats, 'Oats must be recognized')
-  assert.equal(oats.quantity, 200)
-  assert.equal(oats.unit, 'g')
-  assert.equal(oats.calories, 778)
-  assert.equal(oats.preparation, 'overnight-soaked')
-  assert.ok(oats.clarificationQuestions.some(q => q.toLowerCase().includes('dry') || q.toLowerCase().includes('soaked')), 'Must clarify dry weight vs soaked weight')
+  // 1. Below target (1,500 kcal consumed -> 400 kcal remaining)
+  addMealLog({
+    id: 'f_target_1',
+    user_id: userId,
+    date,
+    meal_type: 'lunch',
+    food_name: 'Chicken Rice Bowl',
+    serving_quantity: 1,
+    serving_unit: 'serving',
+    serving_grams: 400,
+    energy_kcal: 1500,
+    protein_g: 80,
+    carb_g: 150,
+    fat_g: 40,
+    fibre_g: 12
+  })
 
-  // 2. Almonds: 5 pieces
-  const almonds = result.items.find(i => i.foodName.toLowerCase().includes('almond') || i.foodName.toLowerCase().includes('badam'))
-  assert.ok(almonds, 'Almonds must be recognized')
-  assert.equal(almonds.quantity, 5)
-  assert.equal(almonds.unit, 'piece')
-  assert.equal(almonds.estimatedGrams, 6)
-  assert.equal(almonds.calories, 34.7)
+  await routes['GET /api/nutrition/health-log']({ url: `http://localhost/api/nutrition/health-log?date=${date}` }, {})
+  assert.equal(responseData.totals.calorie_target, 1900)
+  assert.equal(responseData.totals.calories_consumed, 1500)
+  assert.equal(responseData.totals.is_below_target, true)
+  assert.equal(responseData.totals.calories_remaining, 400)
+  assert.equal(responseData.totals.is_above_target, false)
 
-  // 3. Grapes: 5 pieces
-  const grapes = result.items.find(i => i.foodName.toLowerCase().includes('grape'))
-  assert.ok(grapes, 'Grapes must be recognized')
-  assert.equal(grapes.quantity, 5)
-  assert.equal(grapes.unit, 'piece')
-  assert.equal(grapes.estimatedGrams, 25)
-  assert.equal(grapes.calories, 17.3)
-  assert.ok(grapes.clarificationQuestions.some(q => q.toLowerCase().includes('fresh') || q.toLowerCase().includes('raisin')), 'Must clarify fresh grapes vs raisins')
+  // 2. Exactly at target (add 400 kcal snack -> 1,900 kcal exactly)
+  addMealLog({
+    id: 'f_target_2',
+    user_id: userId,
+    date,
+    meal_type: 'snacks',
+    food_name: 'Greek Yogurt & Walnuts',
+    serving_quantity: 1,
+    serving_unit: 'serving',
+    serving_grams: 200,
+    energy_kcal: 400,
+    protein_g: 20,
+    carb_g: 15,
+    fat_g: 18,
+    fibre_g: 2
+  })
 
-  // Totals must equal exact sum of items: 778 + 34.7 + 17.3 = 830 kcal
-  assert.equal(result.totals.calories, 830)
-  assert.equal(result.totals.energy_kcal, 830)
-  assert.equal(result.isEstimate, true)
+  await routes['GET /api/nutrition/health-log']({ url: `http://localhost/api/nutrition/health-log?date=${date}` }, {})
+  assert.equal(responseData.totals.calories_consumed, 1900)
+  assert.equal(responseData.totals.is_exact_target, true)
+  assert.equal(responseData.totals.calories_remaining, 0)
+  assert.equal(responseData.totals.calories_above, 0)
+
+  // 3. Above target (add 300 kcal dinner -> 2,200 kcal -> 300 kcal above target)
+  addMealLog({
+    id: 'f_target_3',
+    user_id: userId,
+    date,
+    meal_type: 'dinner',
+    food_name: 'Paneer Salad',
+    serving_quantity: 1,
+    serving_unit: 'serving',
+    serving_grams: 250,
+    energy_kcal: 300,
+    protein_g: 15,
+    carb_g: 10,
+    fat_g: 20,
+    fibre_g: 5
+  })
+
+  await routes['GET /api/nutrition/health-log']({ url: `http://localhost/api/nutrition/health-log?date=${date}` }, {})
+  assert.equal(responseData.totals.calories_consumed, 2200)
+  assert.equal(responseData.totals.is_above_target, true)
+  assert.equal(responseData.totals.calories_above, 300)
+  assert.equal(responseData.totals.calories_remaining, 0)
+
+  // Clean up
+  deleteMealLog('f_target_1', userId)
+  deleteMealLog('f_target_2', userId)
+  deleteMealLog('f_target_3', userId)
 })
 
-test('Gemini Direct Analysis: 5. "2 idlis with sambar" (Indian / South Indian staples)', async () => {
-  const result = await analyzeMealWithGemini('2 idlis with sambar')
-  assert.equal(result.items.length, 2, 'Must separate into Idli and Sambar')
+test('Daily Health Log: Empty log handling returns zeroed totals without fake data', async () => {
+  const userId = 'test_empty_user'
+  const date = '2099-01-01'
 
-  const idli = result.items.find(i => i.foodName.toLowerCase().includes('idli'))
-  assert.ok(idli, 'Idli must be recognized')
-  assert.equal(idli.quantity, 2)
-  assert.equal(idli.preparation, 'steamed')
-  assert.equal(idli.calories, 132)
+  let responseData = null
+  const mockJson = (res, status, data) => { responseData = data }
+  const mockSession = () => ({ id: userId, name: 'EmptyTester' })
+  const routes = nutritionRoutes({ json: mockJson, readBody: async () => ({}), readSession: mockSession })
 
-  const sambar = result.items.find(i => i.foodName.toLowerCase().includes('sambar'))
-  assert.ok(sambar, 'Sambar must be recognized')
-  assert.equal(sambar.calories, 110)
+  await routes['GET /api/nutrition/health-log']({ url: `http://localhost/api/nutrition/health-log?date=${date}` }, {})
 
-  // Totals equal exact sum
-  assert.equal(result.totals.calories, Math.round((idli.calories + sambar.calories) * 10) / 10)
-})
-
-test('Gemini Direct Analysis: 6. "100 g cooked rice with 150 g chicken breast"', async () => {
-  const result = await analyzeMealWithGemini('100 g cooked rice with 150 g chicken breast')
-  assert.equal(result.items.length, 2, 'Must separate into Rice and Chicken Breast')
-
-  const rice = result.items.find(i => i.foodName.toLowerCase().includes('rice'))
-  assert.ok(rice)
-  assert.equal(rice.quantity, 100)
-  assert.equal(rice.unit, 'g')
-  assert.equal(rice.calories, 130)
-
-  const chicken = result.items.find(i => i.foodName.toLowerCase().includes('chicken'))
-  assert.ok(chicken)
-  assert.equal(chicken.quantity, 150)
-  assert.equal(chicken.unit, 'g')
-  assert.equal(chicken.calories, 247.5)
-
-  assert.equal(result.totals.calories, 377.5)
-})
-
-test('Gemini Direct Analysis: 7. An empty input (Validation error rejection)', async () => {
-  await assert.rejects(async () => {
-    await analyzeMealWithGemini('')
-  }, /empty/)
-
-  await assert.rejects(async () => {
-    await analyzeMealWithGemini('   ')
-  }, /empty/)
-})
-
-test('Gemini Direct Analysis: 8. A simulated Gemini quota error (RESOURCE_EXHAUSTED / 429)', async () => {
-  const prevQuota = process.env.SIMULATE_GEMINI_QUOTA
-  try {
-    process.env.SIMULATE_GEMINI_QUOTA = '1'
-    await assert.rejects(async () => {
-      await analyzeMealWithGemini('100 g oats')
-    }, (err) => {
-      assert.equal(err.status, 429)
-      assert.equal(err.isQuota, true)
-      assert.ok(err.message.includes('quota') || err.message.includes('rate limit'))
-      return true
-    })
-  } finally {
-    delete process.env.SIMULATE_GEMINI_QUOTA
-  }
-})
-
-test('Gemini Direct Analysis: Missing API key error when running without key', async () => {
-  const origKey = process.env.GEMINI_API_KEY
-  const origEnv = process.env.NODE_ENV
-  try {
-    delete process.env.GEMINI_API_KEY
-    process.env.NODE_ENV = 'production'
-    await assert.rejects(async () => {
-      await analyzeMealWithGemini('100 g oats')
-    }, /GEMINI_API_KEY/)
-  } finally {
-    process.env.GEMINI_API_KEY = origKey
-    process.env.NODE_ENV = origEnv
-  }
-})
-
-test('Gemini Direct Analysis: Error mapping for model, auth, and network errors', () => {
-  // Quota error
-  const quotaErr = mapGeminiError({ status: 429, message: 'RESOURCE_EXHAUSTED' })
-  assert.equal(quotaErr.status, 429)
-  assert.ok(quotaErr.message.includes('quota'))
-
-  // Auth error
-  const authErr = mapGeminiError({ status: 401, message: 'API_KEY_INVALID' })
-  assert.equal(authErr.status, 401)
-  assert.ok(authErr.message.includes('Invalid GEMINI_API_KEY'))
-
-  // Model not found
-  const modelErr = mapGeminiError({ status: 404, message: 'models/gemini-3.1-flash-lite is not found' })
-  assert.equal(modelErr.status, 404)
-  assert.ok(modelErr.message.includes('unsupported'))
-
-  // Timeout
-  const timeoutErr = mapGeminiError({ name: 'TimeoutError', message: 'aborted' })
-  assert.equal(timeoutErr.status, 504)
-  assert.ok(timeoutErr.message.includes('timed out'))
-})
-
-test('Gemini Direct Analysis: Rejection of malformed compound sentence items', () => {
-  const compoundItem = {
-    foodName: '200 g overnight-soaked oats with 5 almonds and 5 grapes',
-    quantity: 1,
-    unit: 'serving',
-    estimatedGrams: 100,
-    calories: 150,
-    protein: 5,
-    carbohydrates: 20,
-    fat: 5,
-    fibre: 2
-  }
-
-  assert.throws(() => {
-    validateAndNormalizeNutritionResponse({
-      items: [compoundItem]
-    }, '200 g overnight-soaked oats with 5 almonds and 5 grapes')
-  }, /Malformed nutrition analysis.*single ingredient/)
+  assert.equal(responseData.foods.length, 0)
+  assert.equal(responseData.water.length, 0)
+  assert.equal(responseData.cardio.length, 0)
+  assert.equal(responseData.strength.length, 0)
+  assert.equal(responseData.totals.calories_consumed, 0)
+  assert.equal(responseData.totals.calories_remaining, 1900)
+  assert.equal(responseData.totals.protein_g, 0)
+  assert.equal(responseData.totals.total_steps, 0)
+  assert.equal(responseData.totals.water_ml, 0)
 })
 

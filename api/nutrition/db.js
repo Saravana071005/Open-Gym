@@ -14,6 +14,65 @@ export function getDb() {
   ];
   let dbPath = candidates.find(p => fs.existsSync(p)) || candidates[0];
   db = new DatabaseSync(dbPath);
+
+  // Initialize health log tables if needed
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS water_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        amount_ml REAL NOT NULL,
+        unit TEXT DEFAULT 'ml',
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_water_user_date ON water_logs(user_id, date);
+
+      CREATE TABLE IF NOT EXISTS cardio_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        activity_type TEXT NOT NULL,
+        duration_min REAL NOT NULL,
+        distance_km REAL,
+        steps REAL,
+        calories_burned REAL,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cardio_user_date ON cardio_logs(user_id, date);
+
+      CREATE TABLE IF NOT EXISTS strength_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        exercise_name TEXT NOT NULL,
+        muscle_group TEXT,
+        sets REAL,
+        reps REAL,
+        weight_kg REAL,
+        duration_min REAL,
+        calories_burned REAL,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_strength_user_date ON strength_logs(user_id, date);
+
+      CREATE TABLE IF NOT EXISTS daily_health_settings (
+        user_id TEXT PRIMARY KEY,
+        calorie_target REAL DEFAULT 1900,
+        water_goal_litres REAL DEFAULT 2.5,
+        updated_at TEXT
+      );
+    `);
+    try {
+      db.exec("ALTER TABLE meal_logs ADD COLUMN notes TEXT");
+    } catch {}
+  } catch (e) {
+    console.error('Error ensuring health log schema:', e);
+  }
+
   return db;
 }
 
@@ -156,7 +215,7 @@ export function getMealLogs(userId, date) {
   return d.prepare(`
     SELECT id, user_id, date, meal_type, food_id, food_name, serving_quantity,
            serving_unit, serving_grams, energy_kcal, protein_g, carb_g, fat_g, fibre_g,
-           assumptions, created_at
+           notes, assumptions, created_at
     FROM meal_logs
     WHERE user_id = ? AND date = ?
     ORDER BY created_at ASC
@@ -169,8 +228,8 @@ export function addMealLog(entry) {
     INSERT OR REPLACE INTO meal_logs (
       id, user_id, date, meal_type, food_id, food_name, serving_quantity,
       serving_unit, serving_grams, energy_kcal, protein_g, carb_g, fat_g, fibre_g,
-      assumptions, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      notes, assumptions, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     entry.id,
     entry.user_id,
@@ -186,6 +245,7 @@ export function addMealLog(entry) {
     entry.carb_g,
     entry.fat_g,
     entry.fibre_g,
+    entry.notes || null,
     typeof entry.assumptions === 'string' ? entry.assumptions : JSON.stringify(entry.assumptions || []),
     entry.created_at || new Date().toISOString()
   );
@@ -201,7 +261,7 @@ export function updateMealLog(id, userId, updates) {
     UPDATE meal_logs
     SET meal_type = ?, food_name = ?, serving_quantity = ?, serving_unit = ?,
         serving_grams = ?, energy_kcal = ?, protein_g = ?, carb_g = ?, fat_g = ?, fibre_g = ?,
-        assumptions = ?
+        notes = ?, assumptions = ?
     WHERE id = ? AND user_id = ?
   `).run(
     merged.meal_type,
@@ -214,6 +274,7 @@ export function updateMealLog(id, userId, updates) {
     merged.carb_g,
     merged.fat_g,
     merged.fibre_g,
+    merged.notes || null,
     typeof merged.assumptions === 'string' ? merged.assumptions : JSON.stringify(merged.assumptions || []),
     id,
     userId
@@ -225,4 +286,191 @@ export function deleteMealLog(id, userId) {
   const d = getDb();
   const res = d.prepare("DELETE FROM meal_logs WHERE id = ? AND user_id = ?").run(id, userId);
   return res.changes > 0;
+}
+
+/* ==================== Water Logs ==================== */
+export function getWaterLogs(userId, date) {
+  const d = getDb();
+  return d.prepare(`
+    SELECT id, user_id, date, amount_ml, unit, notes, created_at
+    FROM water_logs
+    WHERE user_id = ? AND date = ?
+    ORDER BY created_at ASC
+  `).all(userId, date);
+}
+
+export function addWaterLog(entry) {
+  const d = getDb();
+  d.prepare(`
+    INSERT OR REPLACE INTO water_logs (
+      id, user_id, date, amount_ml, unit, notes, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    entry.id,
+    entry.user_id,
+    entry.date,
+    entry.amount_ml,
+    entry.unit || 'ml',
+    entry.notes || null,
+    entry.created_at || new Date().toISOString()
+  );
+  return entry;
+}
+
+export function deleteWaterLog(id, userId) {
+  const d = getDb();
+  const res = d.prepare("DELETE FROM water_logs WHERE id = ? AND user_id = ?").run(id, userId);
+  return res.changes > 0;
+}
+
+/* ==================== Cardio Logs ==================== */
+export function getCardioLogs(userId, date) {
+  const d = getDb();
+  return d.prepare(`
+    SELECT id, user_id, date, activity_type, duration_min, distance_km, steps, calories_burned, notes, created_at
+    FROM cardio_logs
+    WHERE user_id = ? AND date = ?
+    ORDER BY created_at ASC
+  `).all(userId, date);
+}
+
+export function addCardioLog(entry) {
+  const d = getDb();
+  d.prepare(`
+    INSERT OR REPLACE INTO cardio_logs (
+      id, user_id, date, activity_type, duration_min, distance_km, steps, calories_burned, notes, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    entry.id,
+    entry.user_id,
+    entry.date,
+    entry.activity_type,
+    entry.duration_min,
+    entry.distance_km != null ? entry.distance_km : null,
+    entry.steps != null ? entry.steps : null,
+    entry.calories_burned != null ? entry.calories_burned : null,
+    entry.notes || null,
+    entry.created_at || new Date().toISOString()
+  );
+  return entry;
+}
+
+export function updateCardioLog(id, userId, updates) {
+  const d = getDb();
+  const existing = d.prepare("SELECT * FROM cardio_logs WHERE id = ? AND user_id = ?").get(id, userId);
+  if (!existing) return null;
+  const merged = { ...existing, ...updates };
+  d.prepare(`
+    UPDATE cardio_logs
+    SET activity_type = ?, duration_min = ?, distance_km = ?, steps = ?, calories_burned = ?, notes = ?
+    WHERE id = ? AND user_id = ?
+  `).run(
+    merged.activity_type,
+    merged.duration_min,
+    merged.distance_km != null ? merged.distance_km : null,
+    merged.steps != null ? merged.steps : null,
+    merged.calories_burned != null ? merged.calories_burned : null,
+    merged.notes || null,
+    id,
+    userId
+  );
+  return d.prepare("SELECT * FROM cardio_logs WHERE id = ?").get(id);
+}
+
+export function deleteCardioLog(id, userId) {
+  const d = getDb();
+  const res = d.prepare("DELETE FROM cardio_logs WHERE id = ? AND user_id = ?").run(id, userId);
+  return res.changes > 0;
+}
+
+/* ==================== Strength Logs ==================== */
+export function getStrengthLogs(userId, date) {
+  const d = getDb();
+  return d.prepare(`
+    SELECT id, user_id, date, exercise_name, muscle_group, sets, reps, weight_kg, duration_min, calories_burned, notes, created_at
+    FROM strength_logs
+    WHERE user_id = ? AND date = ?
+    ORDER BY created_at ASC
+  `).all(userId, date);
+}
+
+export function addStrengthLog(entry) {
+  const d = getDb();
+  d.prepare(`
+    INSERT OR REPLACE INTO strength_logs (
+      id, user_id, date, exercise_name, muscle_group, sets, reps, weight_kg, duration_min, calories_burned, notes, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    entry.id,
+    entry.user_id,
+    entry.date,
+    entry.exercise_name,
+    entry.muscle_group || null,
+    entry.sets != null ? entry.sets : null,
+    entry.reps != null ? entry.reps : null,
+    entry.weight_kg != null ? entry.weight_kg : null,
+    entry.duration_min != null ? entry.duration_min : null,
+    entry.calories_burned != null ? entry.calories_burned : null,
+    entry.notes || null,
+    entry.created_at || new Date().toISOString()
+  );
+  return entry;
+}
+
+export function updateStrengthLog(id, userId, updates) {
+  const d = getDb();
+  const existing = d.prepare("SELECT * FROM strength_logs WHERE id = ? AND user_id = ?").get(id, userId);
+  if (!existing) return null;
+  const merged = { ...existing, ...updates };
+  d.prepare(`
+    UPDATE strength_logs
+    SET exercise_name = ?, muscle_group = ?, sets = ?, reps = ?, weight_kg = ?, duration_min = ?, calories_burned = ?, notes = ?
+    WHERE id = ? AND user_id = ?
+  `).run(
+    merged.exercise_name,
+    merged.muscle_group || null,
+    merged.sets != null ? merged.sets : null,
+    merged.reps != null ? merged.reps : null,
+    merged.weight_kg != null ? merged.weight_kg : null,
+    merged.duration_min != null ? merged.duration_min : null,
+    merged.calories_burned != null ? merged.calories_burned : null,
+    merged.notes || null,
+    id,
+    userId
+  );
+  return d.prepare("SELECT * FROM strength_logs WHERE id = ?").get(id);
+}
+
+export function deleteStrengthLog(id, userId) {
+  const d = getDb();
+  const res = d.prepare("DELETE FROM strength_logs WHERE id = ? AND user_id = ?").run(id, userId);
+  return res.changes > 0;
+}
+
+/* ==================== Daily Health Settings ==================== */
+export function getDailyHealthSettings(userId) {
+  const d = getDb();
+  const row = d.prepare("SELECT * FROM daily_health_settings WHERE user_id = ?").get(userId);
+  if (row) return row;
+  return {
+    user_id: userId,
+    calorie_target: 1900,
+    water_goal_litres: 2.5
+  };
+}
+
+export function setDailyHealthSettings(userId, settings) {
+  const d = getDb();
+  const now = new Date().toISOString();
+  d.prepare(`
+    INSERT OR REPLACE INTO daily_health_settings (
+      user_id, calorie_target, water_goal_litres, updated_at
+    ) VALUES (?, ?, ?, ?)
+  `).run(
+    userId,
+    settings.calorie_target != null ? settings.calorie_target : 1900,
+    settings.water_goal_litres != null ? settings.water_goal_litres : 2.5,
+    now
+  );
+  return getDailyHealthSettings(userId);
 }

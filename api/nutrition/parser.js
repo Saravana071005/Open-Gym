@@ -1,6 +1,5 @@
 import { searchFoods, getFoodById } from './db.js';
 import { resolveGrams, calculateNutrients } from './engine.js';
-import { parseMealWithGemini } from './gemini.js';
 
 const WORD_NUMBERS = {
   a: 1,
@@ -351,66 +350,10 @@ export function parseMeal(text) {
 }
 
 /**
- * Asynchronously parses meal input using Google Gemini structured output when configured,
- * falling back gracefully to local deterministic rule-based parser.
+ * Asynchronously parses meal input using deterministic local parsing.
  */
 export async function parseMealAsync(text) {
-  // 1. Attempt Gemini structured parsing if client configured
-  const aiItems = await parseMealWithGemini(text);
-  if (aiItems && Array.isArray(aiItems) && aiItems.length > 0) {
-    const items = [];
-    const totals = {
-      energy_kcal: 0,
-      protein_g: 0,
-      carb_g: 0,
-      fat_g: 0,
-      fibre_g: 0
-    };
-
-    for (const aiItem of aiItems) {
-      const parsed = {
-        rawPhrase: aiItem.originalText || aiItem.raw_phrase || aiItem.foodName || aiItem.food_name,
-        coreFoodQuery: aiItem.foodName || aiItem.food_name,
-        quantity: aiItem.quantity,
-        hasExplicitQuantity: true,
-        unit: aiItem.unit,
-        prepState: aiItem.preparation || aiItem.prep_state || null,
-        ingredients: aiItem.ingredients || []
-      };
-
-      const calcResult = matchAndCalculate(parsed);
-      if ((aiItem.clarificationQuestions?.[0] || aiItem.clarification_needed) && !calcResult.clarification) {
-        calcResult.clarification = aiItem.clarificationQuestions?.[0] || aiItem.clarification_needed;
-      }
-      items.push(calcResult);
-
-      if (calcResult.matched && calcResult.nutrients) {
-        totals.energy_kcal += calcResult.nutrients.energy_kcal;
-        totals.protein_g += calcResult.nutrients.protein_g;
-        totals.carb_g += calcResult.nutrients.carb_g;
-        totals.fat_g += calcResult.nutrients.fat_g;
-        totals.fibre_g += calcResult.nutrients.fibre_g;
-      }
-    }
-
-    totals.energy_kcal = Math.round(totals.energy_kcal * 10) / 10;
-    totals.protein_g = Math.round(totals.protein_g * 10) / 10;
-    totals.carb_g = Math.round(totals.carb_g * 10) / 10;
-    totals.fat_g = Math.round(totals.fat_g * 10) / 10;
-    totals.fibre_g = Math.round(totals.fibre_g * 10) / 10;
-
-    return {
-      raw_input: text,
-      items,
-      totals,
-      item_count: items.length,
-      all_matched: items.length > 0 && items.every(i => i.matched),
-      provider: 'gemini'
-    };
-  }
-
-  // 2. Fallback to local rule-based deterministic parser
   const result = parseMeal(text);
-  result.provider = 'local_nlp';
+  result.provider = 'manual';
   return result;
 }
