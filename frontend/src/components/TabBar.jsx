@@ -12,32 +12,43 @@ export default function TabBar({ onStart }) {
   const user = useStore(s => s.user)
   const isGuest = useStore(s => s.isGuest())
   if (!user && !isGuest) return null
-  const cur = loc.pathname.split('/')[1] || 'home'
-  const on = k => cur === k || (cur === 'history' && k === 'stats') || (cur === 'settings' && k === 'home')
 
-  const startWorkout = () => {
-    if (!S.active) {
-      const r = effectiveRoutine(S, todayISO())
-      if (r && r.ex.length) { onStart(r.id); return }
-    }
-    nav('/workout')
+  const cur = loc.pathname.split('/')[1] || 'home'
+  const isTabActive = k => {
+    if (k === 'home') return cur === 'home'
+    if (k === 'workouts') return cur === 'plan' || cur === 'workout' || cur === 'library'
+    if (k === 'activity') return cur === 'stats' || cur === 'history'
+    if (k === 'nutrition') return cur === 'nutrition'
+    if (k === 'profile') return cur === 'settings' || cur === 'admin' || cur === 'coach'
+    return false
   }
-  const Tab = ({ k, icon, to, label }) => (
-    <button className={on(k) ? 'on' : ''} onClick={() => nav(to)}>
-      <Icon name={icon} /><span>{label}</span>
+
+  const Tab = ({ k, icon, to, label, badge }) => (
+    <button
+      className={isTabActive(k) ? 'on' : ''}
+      onClick={() => nav(to)}
+      aria-label={label}
+      aria-current={isTabActive(k) ? 'page' : undefined}
+    >
+      <Icon name={icon} />
+      <span>{label}</span>
+      {badge && <span className="tab-badge" />}
     </button>
   )
 
   return (
-    <nav id="tabbar">
+    <nav id="tabbar" role="navigation" aria-label="Main Navigation">
       <Tab k="home" icon="house" to="/home" label={t('Home')} />
-      <Tab k="plan" icon="calendar" to="/plan" label={t('Plan')} />
-      <button className={'start' + (S.active ? ' rec' : '')} onClick={startWorkout}>
-        <span className="cir"><Icon name={S.active ? 'play' : 'dumbbell'} /></span>
-        <span>{S.active ? t('Resume') : t('Start')}</span>
-      </button>
-      <Tab k="stats" icon="chart" to="/stats" label={t('Stats')} />
-      <Tab k="library" icon="list" to="/library" label={t('Exercises')} />
+      <Tab
+        k="workouts"
+        icon={S.active ? 'play' : 'dumbbell'}
+        to={S.active ? '/workout' : '/plan'}
+        label={S.active ? t('Resume') : t('Workouts')}
+        badge={!!S.active}
+      />
+      <Tab k="activity" icon="chart" to="/stats" label={t('Activity')} />
+      <Tab k="nutrition" icon="nutrition" to="/nutrition" label={t('Health Log')} />
+      <Tab k="profile" icon="person" to="/settings" label={t('Profile')} />
     </nav>
   )
 }

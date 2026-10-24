@@ -224,11 +224,12 @@ export default function Nutrition() {
   }
 
   // --- Simplified Food Operations ---
-  const handleOpenFoodModal = (existing = null) => {
+  const handleOpenFoodModal = (existing = null, defaultMeal = 'breakfast') => {
     openSheet(close => (
       <SimplifiedFoodFormModal
         date={date}
         existing={existing}
+        defaultMeal={defaultMeal}
         onSave={async (savedEntry) => {
           close()
           let updatedFoods
@@ -449,39 +450,39 @@ export default function Nutrition() {
   const displayFoods = showExamples ? [...EXAMPLE_ENTRIES, ...foods] : foods
 
   return (
-    <div className="narrow" style={{ maxWidth: 960, margin: '0 auto', padding: '16px 12px 64px' }}>
+    <div className="narrow" style={{ maxWidth: 960, margin: '0 auto', padding: '16px 14px 80px' }}>
       {/* Page Title & Top Actions */}
       <div className="hdr" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>
-            <span style={{ color: 'var(--acc)' }}><Icon name="clipboard" /></span>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.025em' }}>
+            <span style={{ color: 'var(--coral)' }}><Icon name="apple" /></span>
             {t('Daily Health Log')}
           </h1>
-          <div className="sub" style={{ fontSize: '0.88rem', color: 'var(--muted)', marginTop: 4 }}>
-            {t('Manual food and activity logging with 1,900 kcal target and ChatGPT PDF report')}
+          <div className="sub" style={{ fontSize: 13, color: 'var(--label-2)', marginTop: 2 }}>
+            {t('Manual tracking · 1,900 kcal target · ChatGPT PDF')}
           </div>
         </div>
 
         {/* Prominent Export Daily Report PDF Button */}
         <Button
-          variant="acc"
+          variant="primary"
           icon="download"
           onClick={handleExportPdf}
-          style={{ fontWeight: 600, padding: '10px 18px', fontSize: '0.95rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+          style={{ fontWeight: 700, padding: '10px 18px', fontSize: 14, borderRadius: 9999, boxShadow: '0 4px 14px -2px rgba(46,196,182,0.4)' }}
         >
           {t('Export Daily Report PDF')}
         </Button>
       </div>
 
       {/* Date Selector Strip */}
-      <div className="card" style={{ padding: '12px 16px', marginBottom: 20 }}>
+      <div className="card" style={{ padding: '12px 16px', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               className="iconbtn"
               onClick={() => changeDate(-1)}
               aria-label="Previous day"
-              style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface-2)' }}
+              style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--surface-2)' }}
             >
               <Icon name="chevronLeft" />
             </button>
@@ -491,19 +492,19 @@ export default function Nutrition() {
               onChange={e => e.target.value && setDate(e.target.value)}
               style={{
                 background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
+                border: 'var(--card-border)',
+                borderRadius: 12,
                 padding: '6px 12px',
-                fontSize: '1rem',
+                fontSize: 14,
                 fontWeight: 600,
-                color: 'var(--fg)'
+                color: 'var(--label)'
               }}
             />
             <button
               className="iconbtn"
               onClick={() => changeDate(1)}
               aria-label="Next day"
-              style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface-2)' }}
+              style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--surface-2)' }}
             >
               <Icon name="chevronRight" />
             </button>
@@ -514,15 +515,15 @@ export default function Nutrition() {
               <button
                 className="btn small"
                 onClick={() => setDate(todayISO())}
-                style={{ padding: '4px 10px', fontSize: '0.85rem' }}
+                style={{ padding: '5px 12px', fontSize: 13, borderRadius: 9999 }}
               >
                 {t('Today')}
               </button>
             )}
             <button
-              className={`btn small ${showExamples ? 'acc' : ''}`}
+              className={`btn small ${showExamples ? 'primary' : ''}`}
               onClick={() => setShowExamples(!showExamples)}
-              style={{ padding: '4px 10px', fontSize: '0.85rem' }}
+              style={{ padding: '5px 12px', fontSize: 13, borderRadius: 9999 }}
               title={t('Toggle reference example entries')}
             >
               <Icon name="lightbulb" />
@@ -532,189 +533,199 @@ export default function Nutrition() {
         </div>
       </div>
 
-      {/* SECTION 5: Daily Summary Interface */}
-      <div className="card" style={{ marginBottom: 24, border: '1px solid var(--border)', background: 'var(--surface)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--acc)', fontSize: '1.2rem' }}><Icon name="chart" /></span>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>{t('Daily Summary')}</h2>
+      {/* Calorie Goal & Overview Card — Inspired by Phone 6 in reference image */}
+      <div className="calorie-goal-card">
+        <div className="row between" style={{ alignItems: 'baseline', marginBottom: 4 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--label-2)', textTransform: 'uppercase' }}>
+              {t('Calorie Goal')}
+            </div>
+            <div className="big" style={{ fontSize: 26, fontWeight: 800, marginTop: 2 }}>
+              1,900 <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--label-2)' }}>kcal</span>
+            </div>
           </div>
-          <span className="small muted" style={{ fontWeight: 500 }}>
-            {t('Daily Target')}: <strong style={{ color: 'var(--fg)' }}>1,900 kcal</strong>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--label-2)' }}>
+            {totals.food_count > 0 ? t('{0} foods recorded', totals.food_count) : t('No foods recorded')}
           </span>
         </div>
 
-        {/* Overview Stats Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
-          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Food Entries')}</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>
-              {totals.food_count} <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>{t('items')}</span>
-            </div>
-          </div>
-          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Water Consumed')}</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--blue)', marginTop: 2 }}>
-              {totals.water_litres} L <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>/ {waterGoalL} L</span>
-            </div>
-          </div>
-          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Cardio Duration')}</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--orange)', marginTop: 2 }}>
-              {totals.cardio_duration_min} <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>min</span>
-            </div>
-          </div>
-          <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>{t('Strength Exercises')}</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--purple)', marginTop: 2 }}>
-              {strength.length} <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>{t('exercises')}</span>
-            </div>
+        {/* Progress Bar */}
+        <div className="calorie-bar-wrap">
+          <div className="calorie-bar-track">
+            <div
+              className="calorie-bar-fill"
+              style={{ width: `${Math.min(100, totals.food_count * 25)}%` }}
+            />
           </div>
         </div>
 
-        {/* Tracking Note on 1,900 kcal Target */}
-        <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <span style={{ color: 'var(--acc)', fontSize: '1.1rem', marginTop: 1 }}><Icon name="info" /></span>
-          <div style={{ fontSize: '0.85rem', lineHeight: 1.45, color: 'var(--muted)' }}>
-            <strong style={{ color: 'var(--fg)' }}>{t('Daily Calorie Target: 1,900 kcal')}</strong>
-            <br />
-            {t('The live website records food names and quantities without calculating calories or macros. When you click "Export Daily Report PDF", full nutritional estimates, target comparisons, and hydration/activity analyses are evaluated by ChatGPT via the embedded prompt.')}
+        {/* Summary Pills Grid */}
+        <div className="macro-pills-grid">
+          <div className="macro-pill-item">
+            <span className="macro-pill-title">{t('Food Items')}</span>
+            <span className="macro-pill-val">{totals.food_count}</span>
+          </div>
+          <div className="macro-pill-item">
+            <span className="macro-pill-title">{t('Water')}</span>
+            <span className="macro-pill-val" style={{ color: 'var(--teal)' }}>
+              {totals.water_litres} L <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--label-3)' }}>/ {waterGoalL}L</span>
+            </span>
+          </div>
+          <div className="macro-pill-item">
+            <span className="macro-pill-title">{t('Activity')}</span>
+            <span className="macro-pill-val" style={{ color: 'var(--coral)' }}>
+              {totals.total_workout_duration_min} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--label-3)' }}>min</span>
+            </span>
           </div>
         </div>
 
-        {/* Activity & Workout Stats Strip */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: '0.88rem', color: 'var(--muted)' }}>
-          <span>{t('Total Workout Duration')}: <strong style={{ color: 'var(--fg)' }}>{totals.total_workout_duration_min} min</strong></span>
-          <span>•</span>
-          <span>{t('Total Steps')}: <strong style={{ color: 'var(--fg)' }}>{totals.total_steps ? totals.total_steps.toLocaleString() : t('Not recorded')}</strong></span>
-          {totals.exercise_calories_burned > 0 && (
-            <>
-              <span>•</span>
-              <span>{t('Exercise Calories (user estimate)')}: <strong style={{ color: 'var(--fg)' }}>{totals.exercise_calories_burned} kcal</strong></span>
-            </>
-          )}
+        <div style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '10px 14px', marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: 'var(--mint)', fontSize: 16 }}><Icon name="info" /></span>
+          <div style={{ fontSize: 12, color: 'var(--label-2)', lineHeight: 1.4 }}>
+            {t('Manual logging without live AI APIs. Click "Export Daily Report PDF" to evaluate full calories, macros and hydration in ChatGPT.')}
+          </div>
         </div>
       </div>
 
-      {/* SECTION 1 & 2: Food Intake Log Table (Simplified) */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--green)', fontSize: '1.2rem' }}><Icon name="apple" /></span>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>{t('Food Intake')}</h2>
-          </div>
+      {/* Today's Meals Section — Grouped cards matching Phone 6 in reference image */}
+      <div style={{ marginBottom: 20 }}>
+        <div className="row between" style={{ marginBottom: 12, padding: '0 4px' }}>
+          <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--label)' }}>
+            {t("Today's Meals")}
+          </h2>
           <Button
-            variant="acc"
+            variant="tinted"
             icon="plus"
-            size="small"
+            size="sm"
             onClick={() => handleOpenFoodModal()}
-            style={{ fontWeight: 600 }}
           >
             {t('Add Food')}
           </Button>
         </div>
 
-        {/* Food Table (Meal, Food Name, Quantity, Unit, Notes, Actions) */}
-        {displayFoods.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', background: 'var(--surface-2)', borderRadius: 10 }}>
-            <Icon name="nutrition" style={{ fontSize: '2rem', marginBottom: 8, display: 'inline-block' }} />
-            <div style={{ fontWeight: 600 }}>{t('No food entries recorded for this date')}</div>
-            <div style={{ fontSize: '0.85rem', marginTop: 4 }}>
-              {t('Click "Add Food" to record foods, quantities, and units (e.g. 100 g rolled oats, 150 g banana).')}
-            </div>
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border)', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '10px' }}>{t('Meal')}</th>
-                  <th style={{ padding: '10px' }}>{t('Food Name')}</th>
-                  <th style={{ padding: '10px' }}>{t('Quantity')}</th>
-                  <th style={{ padding: '10px' }}>{t('Unit')}</th>
-                  <th style={{ padding: '10px' }}>{t('Notes')}</th>
-                  <th style={{ padding: '10px', textAlign: 'right' }}>{t('Actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayFoods.map(f => (
-                  <tr
-                    key={f.id}
-                    style={{
-                      borderBottom: '1px solid var(--border)',
-                      background: f.is_example ? 'color-mix(in srgb,var(--surface-2) 60%,transparent)' : 'transparent'
-                    }}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {MEAL_TYPES.map(meal => {
+            const mealFoods = displayFoods.filter(f => f.meal_type === meal.id)
+            return (
+              <div key={meal.id} className="card" style={{ padding: '16px 18px', marginBottom: 0 }}>
+                <div className="row between" style={{ marginBottom: mealFoods.length ? 12 : 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 10,
+                        background: 'var(--surface-2)',
+                        color: meal.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 18
+                      }}
+                    >
+                      <Icon name={meal.icon} />
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--label)' }}>
+                        {t(meal.label)}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--label-2)' }}>
+                        {mealFoods.length} {t(mealFoods.length === 1 ? 'item' : 'items')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    className="iconbtn"
+                    style={{ width: 32, height: 32, fontSize: 14, background: 'var(--surface-2)', color: 'var(--mint)' }}
+                    onClick={() => handleOpenFoodModal(null, meal.id)}
+                    aria-label={t('Add food to {0}', meal.label)}
+                    title={t('Add food to {0}', meal.label)}
                   >
-                    <td style={{ padding: '12px 10px', verticalAlign: 'middle' }}>
-                      <span
+                    <Icon name="plus" />
+                  </button>
+                </div>
+
+                {/* Food Entries in this meal */}
+                {mealFoods.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {mealFoods.map(f => (
+                      <div
+                        key={f.id}
                         style={{
-                          display: 'inline-block',
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                          background: 'var(--surface-2)',
-                          textTransform: 'capitalize'
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          padding: '10px 12px',
+                          borderRadius: 12,
+                          background: f.is_example ? 'color-mix(in srgb, var(--surface-2) 60%, transparent)' : 'var(--surface-2)'
                         }}
                       >
-                        {f.meal_type}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 10px', fontWeight: 600, verticalAlign: 'middle' }}>
-                      {f.food_name}
-                      {f.is_example && (
-                        <span style={{ marginLeft: 6, fontSize: '0.72rem', background: 'var(--surface-3)', color: 'var(--muted)', padding: '2px 6px', borderRadius: 4 }}>
-                          {t('Example - Not Counted')}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 10px', verticalAlign: 'middle', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                      {f.serving_quantity}
-                    </td>
-                    <td style={{ padding: '12px 10px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                      {f.serving_unit}
-                    </td>
-                    <td style={{ padding: '12px 10px', color: 'var(--muted)', fontSize: '0.85rem', verticalAlign: 'middle' }}>
-                      {f.notes || '-'}
-                    </td>
-                    <td style={{ padding: '12px 10px', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                      {!f.is_example && (
-                        <>
-                          <button
-                            className="iconbtn"
-                            onClick={() => handleOpenFoodModal(f)}
-                            style={{ width: 30, height: 30, marginRight: 4 }}
-                            aria-label="Edit food entry"
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--label)' }}>
+                            {f.food_name}
+                            {f.is_example && (
+                              <span style={{ marginLeft: 6, fontSize: 11, background: 'var(--surface-3)', color: 'var(--label-3)', padding: '2px 6px', borderRadius: 4 }}>
+                                {t('Example')}
+                              </span>
+                            )}
+                          </div>
+                          {f.notes && (
+                            <div style={{ fontSize: 12, color: 'var(--label-2)', marginTop: 2 }}>
+                              {f.notes}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+                          <span
+                            style={{
+                              background: 'var(--surface)',
+                              border: 'var(--card-border)',
+                              padding: '4px 10px',
+                              borderRadius: 9999,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: 'var(--label)'
+                            }}
                           >
-                            <Icon name="pencil" />
-                          </button>
-                          <button
-                            className="iconbtn danger"
-                            onClick={() => handleDeleteFood(f)}
-                            style={{ width: 30, height: 30 }}
-                            aria-label="Delete food entry"
-                          >
-                            <Icon name="trash" />
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ background: 'var(--surface-2)', fontWeight: 600 }}>
-                  <td colSpan={2} style={{ padding: '10px' }}>
-                    {t('Total Foods Recorded')}: {totals.food_count} {t('items')}
-                  </td>
-                  <td colSpan={4} style={{ padding: '10px', textAlign: 'right', fontSize: '0.82rem', color: 'var(--muted)' }}>
-                    {t('Target: 1,900 kcal | Complete nutrition breakdown estimated in exported PDF')}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
+                            {f.serving_quantity} {f.serving_unit}
+                          </span>
+
+                          {!f.is_example && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <button
+                                className="iconbtn"
+                                onClick={() => handleOpenFoodModal(f, meal.id)}
+                                style={{ width: 28, height: 28, fontSize: 12 }}
+                                aria-label="Edit food"
+                              >
+                                <Icon name="pencil" />
+                              </button>
+                              <button
+                                className="iconbtn"
+                                onClick={() => handleDeleteFood(f)}
+                                style={{ width: 28, height: 28, fontSize: 12, color: 'var(--coral)' }}
+                                aria-label="Delete food"
+                              >
+                                <Icon name="trash" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ padding: '8px 4px', fontSize: 13, color: 'var(--label-3)', fontStyle: 'italic' }}>
+                    {t('No {0} entries recorded yet.', meal.label.toLowerCase())}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* SECTION B: Water Intake Tracker */}
@@ -1068,6 +1079,25 @@ export default function Nutrition() {
           </div>
         )}
       </div>
+
+      {/* Bottom Floating/Docked Export Report Card */}
+      <div className="card" style={{ padding: 18, textAlign: 'center', background: 'var(--surface)', marginTop: 14 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--label)', marginBottom: 4 }}>
+          {t('Ready to analyze your daily nutrition?')}
+        </div>
+        <div className="muted small" style={{ marginBottom: 14 }}>
+          {t('Exports your complete daily food, water, cardio, steps, and strength records formatted for instant evaluation by ChatGPT.')}
+        </div>
+        <Button
+          variant="primary"
+          size="lg"
+          icon="download"
+          onClick={handleExportPdf}
+          style={{ width: '100%', padding: '15px', borderRadius: 'var(--r)', fontSize: 16, fontWeight: 700 }}
+        >
+          {t('Export Daily Report PDF')}
+        </Button>
+      </div>
     </div>
   )
 }
@@ -1079,8 +1109,8 @@ export default function Nutrition() {
  * Contains only Meal, Food Name, Quantity, Unit, and optional Notes.
  * Completely removes calories and macronutrient inputs.
  */
-function SimplifiedFoodFormModal({ date, existing, onSave }) {
-  const [mealType, setMealType] = useState(existing?.meal_type || 'breakfast')
+function SimplifiedFoodFormModal({ date, existing, defaultMeal = 'breakfast', onSave }) {
+  const [mealType, setMealType] = useState(existing?.meal_type || defaultMeal)
   const [foodName, setFoodName] = useState(existing?.food_name || '')
   const [quantity, setQuantity] = useState(existing?.serving_quantity != null ? String(existing.serving_quantity) : '100')
   const [unit, setUnit] = useState(existing?.serving_unit || 'g')

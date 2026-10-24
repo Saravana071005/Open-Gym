@@ -6,7 +6,7 @@ import { uid } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { supersetUnits, cleanupSg, exLine } from '../lib/history.js'
 import { Thumb } from '../components/Media.jsx'
-import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet } from '../sheets.jsx'
+import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet, startFlow } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { Button, SelectRow } from '../components/ui.jsx'
@@ -41,10 +41,50 @@ export default function RoutineEdit() {
     <div className="hdr">
       <button className="iconbtn" onClick={() => nav('/plan')} aria-label={t('Plan')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, margin: '0 12px' }}>
-        <input className="input" defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
+        <input className="input" defaultValue={r.name} style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-.021em' }}
           onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })} />
       </div>
       <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
+    </div>
+
+    {/* Hero Card matching Phone 4 in reference image */}
+    <div className="card" style={{ padding: 18, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="lrow-i" style={{ width: 44, height: 44, borderRadius: 14, fontSize: 22, background: 'var(--mint-light)', color: 'var(--mint)' }}>
+            <Icon name={glyphOf(r.emoji) || 'dumbbell'} />
+          </span>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--label)' }}>{r.name}</h2>
+            <div className="sub" style={{ fontSize: 13, color: 'var(--label-2)', marginTop: 2 }}>
+              {exCount(r.ex.length)} · {r.prog || 'linear'}
+            </div>
+          </div>
+        </div>
+        <Button
+          variant="primary"
+          icon="play"
+          style={{ width: 'auto', padding: '8px 16px', borderRadius: 9999, fontWeight: 600, fontSize: 14 }}
+          onClick={() => startFlow(r.id)}
+        >
+          {t('Start')}
+        </Button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 10 }}>
+        <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 12, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--label-3)', textTransform: 'uppercase', fontWeight: 600 }}>{t('Duration')}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--label)', marginTop: 2 }}>~{Math.max(20, r.ex.length * 9)} min</div>
+        </div>
+        <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 12, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--label-3)', textTransform: 'uppercase', fontWeight: 600 }}>{t('Target')}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--label)', marginTop: 2 }}>1,900 kcal</div>
+        </div>
+        <div style={{ background: 'var(--surface-2)', padding: '10px 8px', borderRadius: 12, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--label-3)', textTransform: 'uppercase', fontWeight: 600 }}>{t('Level')}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--label)', marginTop: 2 }}>{r.ex.length > 5 ? t('Advanced') : t('Standard')}</div>
+        </div>
+      </div>
     </div>
 
     <div className="sect-b" style={{ marginBottom: 16 }}>
@@ -101,7 +141,18 @@ export default function RoutineEdit() {
     })()}
 
     <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above — you’ll do them back-to-back.')}</div>
-    <Button variant="primary" onClick={() => exercisePicker(ex => exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r))} icon="plus">{t('Add exercise')}</Button>
+    <div style={{ height: 14 }} />
+    <Button
+      variant="primary"
+      size="lg"
+      icon="play"
+      onClick={() => startFlow(r.id)}
+      style={{ padding: '16px', fontSize: 17, fontWeight: 700, borderRadius: 'var(--r)' }}
+    >
+      {t('Start Workout')}
+    </Button>
+    <div style={{ height: 10 }} />
+    <Button onClick={() => exercisePicker(ex => exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r))} icon="plus">{t('Add exercise')}</Button>
     <div style={{ height: 10 }} />
     <Button icon="clipboard" onClick={() => {
       const dup = { id: uid(), name: `${r.name} (${t('Copy')})`, emoji: r.emoji, prog: r.prog, ex: JSON.parse(JSON.stringify(r.ex)) }

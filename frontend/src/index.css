@@ -18,40 +18,57 @@
 
 /* ---------------------------------------------------------------- tokens -- */
 :root {
-  /* surfaces — dark is the default */
-  --bg:        #000000;
-  --bg-el:     #0e0e10;   /* elevated backdrop (sheets, bars) */
-  --surface:   #1c1c1e;   /* card / grouped-list fill */
-  --surface-2: #2c2c2e;   /* pressed + nested fill */
-  --surface-3: #3a3a3c;   /* controls (segmented track, switch off) */
+  /* surfaces — warm cream and mint system */
+  --bg:        #0f1413;
+  --bg-el:     #161c1b;
+  --surface:   #1e2625;
+  --surface-2: #283331;
+  --surface-3: #354240;
 
   /* text */
-  --label:     #ffffff;
-  --label-2:   rgba(235,235,245,.60);
-  --label-3:   rgba(235,235,245,.32);
-  --label-4:   rgba(235,235,245,.18);
+  --label:     #f5f8f7;
+  --label-2:   rgba(235,245,243,.65);
+  --label-3:   rgba(235,245,243,.35);
+  --label-4:   rgba(235,245,243,.18);
 
   /* lines */
-  --sep:       rgba(84,84,88,.60);
-  --sep-op:    rgba(84,84,88,.34);   /* for edges sitting over blur */
+  --sep:       rgba(235,245,243,.10);
+  --sep-op:    rgba(235,245,243,.06);
   --hair:      .5px;
 
-  /* system palette (iOS dark values) */
-  --blue:#0a84ff; --green:#30d158; --red:#ff453a; --orange:#ff9f0a;
-  --yellow:#ffd60a; --teal:#40c8e0; --indigo:#5e5ce6; --pink:#ff375f;
-  --purple:#bf5af2; --mint:#63e6e2; --brown:#ac8e68; --grey:#8e8e93;
+  /* reference image color palette */
+  --mint:      #2ec4b6;
+  --mint-light:#e6f9f6;
+  --mint-dark: #198075;
+  --coral:     #ff7a59;
+  --coral-light:#fff2ee;
+  --coral-dark:#d95738;
+  --lavender:  #8b5cf6;
+  --lavender-light:#f5f3ff;
+  --amber:     #f59e0b;
+  --amber-light:#fef3c7;
+  --teal:      #38bdf8;
 
-  /* accent (per-account, synced) */
-  --acc:  var(--green);
-  --acc-2:#248a3d;
-  --on-acc:#000000;
+  /* system palette */
+  --blue:#0a84ff; --green:#30d158; --red:#ff453a; --orange:#ff9f0a;
+  --yellow:#ffd60a; --indigo:#5e5ce6; --pink:#ff375f;
+  --purple:#bf5af2; --brown:#ac8e68; --grey:#8e8e93;
+
+  /* accent (default: mint from reference image) */
+  --acc:  var(--mint);
+  --acc-2:var(--mint-dark);
+  --on-acc:#ffffff;
   --acc-soft: color-mix(in srgb, var(--acc) 16%, transparent);
   --acc-line: color-mix(in srgb, var(--acc) 38%, transparent);
 
-  /* geometry */
-  --r-sm:8px; --r:12px; --r-lg:16px; --r-xl:22px; --r-card:14px;
+  /* geometry — rounded cards matching reference (18–26px) */
+  --r-sm:10px; --r:16px; --r-lg:20px; --r-xl:26px; --r-card:22px; --r-pill:9999px;
   --pad:16px;
-  --icon-stroke:1.7;
+  --icon-stroke:1.75;
+
+  /* cards */
+  --card-shadow: 0 12px 32px -4px rgba(0,0,0,.45);
+  --card-border: 1px solid rgba(255,255,255,.07);
 
   /* motion */
   --ease:cubic-bezier(.32,.72,0,1);
@@ -62,48 +79,42 @@
 }
 
 :root[data-theme="light"] {
-  --bg:        #f2f2f7;
-  --bg-el:     #f7f7fa;
+  /* warm porcelain / cream background from reference image */
+  --bg:        #fbf9f5;
+  --bg-el:     #ffffff;
   --surface:   #ffffff;
-  --surface-2: #ececef;
-  --surface-3: #e3e3e8;
+  --surface-2: #f4f1ea;
+  --surface-3: #e8e3d8;
 
-  --label:     #000000;
-  --label-2:   rgba(60,60,67,.60);
-  --label-3:   rgba(60,60,67,.30);
-  --label-4:   rgba(60,60,67,.16);
+  --label:     #172321;
+  --label-2:   rgba(23,35,33,.65);
+  --label-3:   rgba(23,35,33,.38);
+  --label-4:   rgba(23,35,33,.16);
 
-  --sep:       rgba(60,60,67,.29);
-  --sep-op:    rgba(60,60,67,.20);
+  --sep:       rgba(23,35,33,.08);
+  --sep-op:    rgba(23,35,33,.05);
 
-  --blue:#007aff; --green:#34c759; --red:#ff3b30; --orange:#ff9500;
-  --yellow:#ffcc00; --teal:#30b0c7; --indigo:#5856d6; --pink:#ff2d55;
-  --purple:#af52de; --mint:#00c7be; --brown:#a2845e; --grey:#8e8e93;
-  --acc-2:#248a3d;
+  --acc:  var(--mint);
+  --acc-2:#1c8a7f;
   --on-acc:#ffffff;
+
+  --card-shadow: 0 10px 28px -4px rgba(22,45,40,.05), 0 2px 8px -2px rgba(22,45,40,.03);
+  --card-border: 1px solid rgba(22,45,40,.05);
 }
 
-/* accents — Apple's system colours, so a recolour never looks off-system */
-:root[data-accent="lime"]  { --acc:var(--green);  --acc-2:#248a3d; --on-acc:#000 }
-:root[data-accent="sky"]   { --acc:var(--blue);   --acc-2:#0060df; --on-acc:#fff }
-:root[data-accent="orange"]{ --acc:var(--orange); --acc-2:#c76b00; --on-acc:#000 }
-:root[data-accent="violet"]{ --acc:var(--purple); --acc-2:#8944ab; --on-acc:#fff }
-:root[data-accent="pink"]  { --acc:var(--pink);   --acc-2:#d70036; --on-acc:#fff }
-:root[data-accent="red"]   { --acc:var(--red);    --acc-2:#d70015; --on-acc:#fff }
-:root[data-accent="teal"]  { --acc:var(--teal);   --acc-2:#0071a4; --on-acc:#000 }
-:root[data-accent="gold"]  { --acc:var(--yellow); --acc-2:#b25000; --on-acc:#000 }
-/* Label colour on a filled accent button is picked per accent by measured contrast,
-   not by taste. Button text is 17px/600, so the AA bar is 3:1 (large text). White on
-   the light-theme green is 2.22:1 and on teal 2.57:1 — both fail, and green is the
-   DEFAULT accent, so every primary button in light mode was failing. Black scores
-   9.46 / 8.16 there. Blue, purple, pink and red keep white (3.5–4.1:1), which both
-   passes and matches the platform convention. */
-:root[data-theme="light"][data-accent="lime"],
-:root[data-theme="light"][data-accent="teal"]  { --on-acc:#000 }
-:root[data-theme="light"][data-accent="sky"],
-:root[data-theme="light"][data-accent="violet"],
-:root[data-theme="light"][data-accent="pink"],
-:root[data-theme="light"][data-accent="red"]   { --on-acc:#fff }
+/* accents */
+:root[data-accent="mint"]   { --acc:var(--mint);   --acc-2:#1c8a7f; --on-acc:#fff }
+:root[data-accent="lime"]   { --acc:var(--green);  --acc-2:#248a3d; --on-acc:#000 }
+:root[data-accent="sky"]    { --acc:var(--blue);   --acc-2:#0060df; --on-acc:#fff }
+:root[data-accent="orange"] { --acc:var(--coral);  --acc-2:#d95738; --on-acc:#fff }
+:root[data-accent="violet"] { --acc:var(--purple); --acc-2:#8944ab; --on-acc:#fff }
+:root[data-accent="pink"]   { --acc:var(--pink);   --acc-2:#d70036; --on-acc:#fff }
+:root[data-accent="red"]    { --acc:var(--red);    --acc-2:#d70015; --on-acc:#fff }
+:root[data-accent="teal"]   { --acc:var(--teal);   --acc-2:#0071a4; --on-acc:#000 }
+:root[data-accent="gold"]   { --acc:var(--amber);  --acc-2:#b25000; --on-acc:#000 }
+
+:root[data-theme="light"][data-accent="lime"]  { --on-acc:#000 }
+:root[data-theme="light"][data-accent="gold"]  { --on-acc:#000 }
 
 /* ---------------------------------------------------------------- reset -- */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -112,8 +123,9 @@ html{
   -webkit-text-size-adjust:100%;
 }
 body{
-  background:var(--bg);color:var(--label);
-  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Segoe UI',Roboto,system-ui,sans-serif;
+  background: radial-gradient(120% 50% at 50% -5%, rgba(46,196,182,.14) 0%, rgba(46,196,182,0) 60%), var(--bg);
+  color:var(--label);
+  font-family:-apple-system,BlinkMacSystemFont,'Plus Jakarta Sans','SF Pro Text','SF Pro Display','Segoe UI',Roboto,system-ui,sans-serif;
   font-size:17px;line-height:1.29;letter-spacing:-.01em;
   min-height:100vh;overscroll-behavior-y:none;overflow-x:clip;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
@@ -162,8 +174,8 @@ button,.chip,.tile,.item,.wday,.cal-d,.swatch,.hm-c,.lrow,.seg button,.stp butto
 
 /* ---------------------------------------------------------------- layout -- */
 #app{
-  padding:calc(var(--sat) + 8px) var(--pad) calc(128px + var(--sab));
-  max-width:560px;margin:0 auto;
+  padding:calc(var(--sat) + 12px) var(--pad) calc(112px + var(--sab));
+  max-width:580px;margin:0 auto;
 }
 /* while the rest timer floats above the tab bar, keep its height scrollable-past
    (the rest variant is two rows tall — ~44px more than the single-row work timer) */
@@ -201,9 +213,416 @@ h4.sec{
 /* ----------------------------------------------------------------- card -- */
 .card{
   background:var(--surface);border-radius:var(--r-card);
-  padding:16px;margin-bottom:12px;
+  padding:18px 20px;margin-bottom:14px;
+  box-shadow:var(--card-shadow);border:var(--card-border);
+  transition:transform var(--fast) var(--ease), box-shadow var(--fast);
 }
-.card .big{font-size:30px;font-weight:600;letter-spacing:-.026em;line-height:1.1}
+.card .big{font-size:28px;font-weight:700;letter-spacing:-.026em;line-height:1.15}
+.card h2{
+  font-size:14px;font-weight:600;letter-spacing:-.006em;color:var(--label);
+  text-transform:none;margin:0 0 12px;
+}
+
+/* ---------------------------------- reference image design components -- */
+/* 1. Today's Progress Card */
+.progress-hero-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  border: var(--card-border);
+  margin-bottom: 14px;
+}
+@media (max-width: 380px) {
+  .progress-hero-card {
+    flex-direction: column;
+    text-align: center;
+    gap: 14px;
+  }
+}
+.progress-hero-ring-wrap {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.progress-hero-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.progress-hero-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.progress-hero-percent {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--label);
+  line-height: 1;
+}
+.progress-hero-metrics {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.progress-hero-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--label);
+}
+.progress-hero-metric-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--label-2);
+  font-weight: 500;
+}
+.progress-hero-metric-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.progress-hero-metric-val {
+  font-weight: 700;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 2. Weekly Activity Bars (Reference Image Phone 2) */
+.weekly-activity-card {
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 16px 18px 14px;
+  box-shadow: var(--card-shadow);
+  border: var(--card-border);
+  margin-bottom: 14px;
+}
+.weekly-activity-strip {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  height: 96px;
+  margin-top: 10px;
+}
+.weekly-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  cursor: pointer;
+}
+.weekly-bar-track {
+  flex: 1;
+  width: 14px;
+  max-width: 18px;
+  background: var(--surface-2);
+  border-radius: 9999px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  position: relative;
+  transition: transform var(--fast);
+}
+.weekly-bar-col:hover .weekly-bar-track {
+  transform: scaleY(1.03);
+}
+.weekly-bar-fill {
+  width: 100%;
+  background: var(--surface-3);
+  border-radius: 9999px;
+  min-height: 8px;
+  transition: height 0.35s var(--ease);
+}
+.weekly-bar-col.completed .weekly-bar-fill {
+  background: color-mix(in srgb, var(--mint) 65%, var(--surface-3));
+}
+.weekly-bar-col.active .weekly-bar-track {
+  background: var(--mint-light);
+}
+.weekly-bar-col.active .weekly-bar-fill {
+  background: var(--mint);
+}
+.weekly-bar-day {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--label-3);
+  text-transform: uppercase;
+}
+.weekly-bar-col.active .weekly-bar-day {
+  color: var(--mint-dark);
+  font-weight: 700;
+}
+.weekly-bar-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+  margin-top: -3px;
+}
+.weekly-bar-col.active .weekly-bar-dot {
+  background: var(--mint);
+}
+
+/* 3. Quick Actions 2x2 Grid (Reference Image Phone 2) */
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.quick-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 14px;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  box-shadow: var(--card-shadow);
+  border: var(--card-border);
+  cursor: pointer;
+  text-align: left;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast);
+}
+.quick-action-card:active {
+  transform: scale(0.97);
+}
+.quick-action-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 12px;
+  flex: none;
+}
+.quick-action-icon.mint {
+  background: var(--mint-light);
+  color: var(--mint);
+}
+.quick-action-icon.coral {
+  background: var(--coral-light);
+  color: var(--coral);
+}
+.quick-action-icon.lavender {
+  background: var(--lavender-light);
+  color: var(--lavender);
+}
+.quick-action-icon.amber {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.quick-action-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--label);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.quick-action-desc {
+  font-size: 12px;
+  color: var(--label-2);
+  margin-top: 3px;
+}
+
+/* 4. Workout Cards (Reference Image Phone 3 & 4) */
+.workout-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  box-shadow: var(--card-shadow);
+  border: var(--card-border);
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast);
+}
+.workout-card:active {
+  transform: scale(0.98);
+}
+.workout-card-thumb {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  overflow: hidden;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--acc);
+  font-size: 24px;
+}
+.workout-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.workout-card-info {
+  flex: 1;
+  min-width: 0;
+}
+.workout-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--label);
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.workout-card-meta {
+  font-size: 13px;
+  color: var(--label-2);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.workout-card-action {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--label-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex: none;
+  transition: background var(--fast), color var(--fast);
+}
+.workout-card:hover .workout-card-action {
+  background: var(--acc-soft);
+  color: var(--acc);
+}
+
+/* 5. Concentric Activity Rings (Reference Image Phone 5) */
+.activity-rings-card {
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 18px 20px;
+  box-shadow: var(--card-shadow);
+  border: var(--card-border);
+  margin-bottom: 14px;
+}
+.activity-rings-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 8px;
+}
+.activity-rings-svg {
+  width: 110px;
+  height: 110px;
+  flex: none;
+  transform: rotate(-90deg);
+}
+.activity-rings-legend {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.activity-ring-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.activity-ring-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--label-2);
+  font-weight: 500;
+}
+.activity-ring-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.activity-ring-val {
+  font-weight: 700;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 6. Nutrition Calorie Banner & Meal Cards (Reference Image Phone 6) */
+.calorie-goal-card {
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 18px 20px;
+  box-shadow: var(--card-shadow);
+  border: var(--card-border);
+  margin-bottom: 14px;
+}
+.calorie-bar-wrap {
+  margin: 12px 0 16px;
+}
+.calorie-bar-track {
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+.calorie-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--coral) 0%, var(--amber) 100%);
+  border-radius: 9999px;
+  transition: width 0.4s var(--ease);
+}
+.macro-pills-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.macro-pill-item {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.macro-pill-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--label-2);
+  text-transform: uppercase;
+}
+.macro-pill-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--label);
+  margin-top: 2px;
+}
 
 /* ------------------------------------------------------ inset group list -- */
 .sect{margin-bottom:22px}
@@ -270,46 +689,53 @@ h4.sec{
 /* ----------------------------------------------------------- tab bar ----- */
 #tabbar{
   position:fixed;left:0;right:0;bottom:0;z-index:50;
-  display:flex;justify-content:space-around;align-items:flex-end;
-  padding:7px 6px calc(6px + var(--sab));
-  background:color-mix(in srgb,var(--bg-el) 72%,transparent);
+  display:flex;justify-content:space-around;align-items:center;
+  padding:8px 8px calc(8px + var(--sab));
+  background:color-mix(in srgb,var(--surface) 92%,transparent);
   backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);
-  border-top:var(--hair) solid var(--sep-op);
+  border-top:var(--card-border);
+  box-shadow:0 -8px 25px rgba(22,45,40,.06);
 }
-:root[data-theme="light"] #tabbar{background:rgba(249,249,251,.78)}
+:root[data-theme="light"] #tabbar{background:rgba(255,255,255,.92)}
 #tabbar button{
-  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-  color:var(--label-3);font-size:10px;font-weight:500;letter-spacing:.005em;padding-top:3px;
-  transition:color var(--fast);
+  flex:1;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--label-3);font-size:11px;font-weight:500;letter-spacing:-.01em;
+  transition:color var(--fast),transform var(--fast);
+  position:relative;
 }
-/* The inactive tint is semi-transparent, so wherever two strokes cross inside an
-   icon (the calendar's hangers over its frame, the divider's caps on its sides)
-   the alpha doubled up and the icon read as a stack of loose layers. Carrying the
-   fade on the <svg> instead of in the stroke colour flattens the icon first and
-   fades it as one shape — and it does that for every icon, not just this one. */
-#tabbar button .icn{font-size:25px;--icon-stroke:1.65;color:var(--label)}
-#tabbar button.on{color:var(--acc)}
-#tabbar button.on .icn{--icon-stroke:2;color:inherit;opacity:1}
-#tabbar button.start{margin-top:-24px}
+#tabbar button .icn{font-size:22px;--icon-stroke:1.75;color:currentColor}
+#tabbar button.on{color:var(--acc);font-weight:600}
+#tabbar button.on .icn{--icon-stroke:2.1;transform:scale(1.05)}
+#tabbar button.on::after{
+  content:'';position:absolute;bottom:0px;width:5px;height:5px;border-radius:50%;background:var(--acc);
+}
+.tab-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 14px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 2px var(--surface);
+  animation: ping 1.9s var(--ease) infinite;
+}
+#tabbar button.start{margin-top:-14px}
 #tabbar button.start .cir{
-  width:52px;height:52px;border-radius:50%;background:var(--acc);color:var(--on-acc);
+  width:48px;height:48px;border-radius:50%;background:var(--acc);color:var(--on-acc);
   display:flex;align-items:center;justify-content:center;position:relative;
   box-shadow:0 6px 18px -4px color-mix(in srgb,var(--acc) 55%,transparent);
   transition:transform var(--fast) var(--ease);
 }
 #tabbar button.start:active .cir{transform:scale(.93)}
-#tabbar button.start .cir .icn{font-size:26px;--icon-stroke:2;color:inherit;opacity:1}
-#tabbar button.start span{color:var(--acc);font-weight:600}
-/* `.cir` is itself a <span>, so the label rules above and below reach it too and
-   outrank the `.cir` block — which is how the running state ended up painting an
-   orange play glyph onto an orange disc. Both states restate their own colour.
-   The disc is orange in either theme, so its glyph is black, not `--on-acc`. */
+#tabbar button.start .cir .icn{font-size:22px;--icon-stroke:2;color:inherit;opacity:1}
+#tabbar button.start span{color:var(--acc);font-weight:600;font-size:11px}
 #tabbar button.start .cir{color:var(--on-acc)}
-#tabbar button.start.rec .cir{background:var(--orange);color:#000;box-shadow:0 6px 18px -4px color-mix(in srgb,var(--orange) 55%,transparent)}
-#tabbar button.start.rec span{color:var(--orange)}
+#tabbar button.start.rec .cir{background:var(--coral);color:#fff;box-shadow:0 6px 18px -4px color-mix(in srgb,var(--coral) 55%,transparent)}
+#tabbar button.start.rec span{color:var(--coral)}
 #tabbar button.start.rec .cir::after{
   content:'';position:absolute;inset:0;border-radius:50%;
-  border:2px solid var(--orange);animation:ping 1.9s var(--ease) infinite;
+  border:2px solid var(--coral);animation:ping 1.9s var(--ease) infinite;
 }
 @keyframes ping{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.45);opacity:0}}
 
