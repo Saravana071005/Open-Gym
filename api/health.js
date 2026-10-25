@@ -1,4 +1,8 @@
-export default function handler(req, res) {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ ok: true, source: 'root/api/health' }));
+import handleRequest from './server.js';
+
+export default async function handler(req, res) {
+  if (!req.url || req.url === '/' || !req.url.startsWith('/api')) {
+    req.url = '/api/health';
+  }
+  return handleRequest(req, res);
 }
