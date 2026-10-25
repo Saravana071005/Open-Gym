@@ -13,6 +13,7 @@
   },
   "license": "AGPL-3.0-or-later",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
     "@capacitor/core": "^7.6.8",
     "@capacitor/filesystem": "^7.1.8",
     "@capacitor/local-notifications": "^7.0.7",
