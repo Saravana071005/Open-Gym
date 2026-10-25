@@ -4,18 +4,21 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "frontend",
-    "api"
+    "frontend"
   ],
   "engines": {
     "node": ">=22.0.0"
   },
   "scripts": {
     "build": "npm --prefix frontend run build",
-    "test": "npm --prefix frontend run test && npm --prefix api run test",
-    "start": "npm --prefix api run start"
+    "test": "npm --prefix frontend run test && node --test api/test/*.test.js",
+    "start": "node api/server.js"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.220",
+    "@anthropic-ai/sdk": "^0.93.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@openai/codex": "0.146.0",
     "@simplewebauthn/server": "^13.1.1",
     "mongodb": "^7.7.0",
     "web-push": "^3.6.7",
