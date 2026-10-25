@@ -339,13 +339,19 @@ function json(res, code, obj, extraHeaders) {
   res.end(body);
 }
 function readBody(req) {
-  if (req.body !== undefined && req.body !== null) {
-    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return Promise.resolve(req.body);
-    if (typeof req.body === 'string') {
-      try { return Promise.resolve(JSON.parse(req.body)); } catch { return Promise.resolve({}); }
+  let body;
+  try {
+    body = req.body;
+  } catch {
+    body = undefined;
+  }
+  if (body !== undefined && body !== null) {
+    if (typeof body === 'object' && !Buffer.isBuffer(body)) return Promise.resolve(body);
+    if (typeof body === 'string') {
+      try { return Promise.resolve(JSON.parse(body)); } catch { return Promise.resolve({}); }
     }
-    if (Buffer.isBuffer(req.body)) {
-      try { return Promise.resolve(JSON.parse(req.body.toString('utf8'))); } catch { return Promise.resolve({}); }
+    if (Buffer.isBuffer(body)) {
+      try { return Promise.resolve(JSON.parse(body.toString('utf8'))); } catch { return Promise.resolve({}); }
     }
   }
   if (typeof req.json === 'function') {
