@@ -340,14 +340,25 @@ function json(res, code, obj, extraHeaders) {
 }
 function readBody(req) {
   if (req.body !== undefined && req.body !== null) {
-    if (typeof req.body === 'object') return Promise.resolve(req.body);
-    try { return Promise.resolve(JSON.parse(req.body)); } catch { return Promise.resolve({}); }
+    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return Promise.resolve(req.body);
+    if (typeof req.body === 'string') {
+      try { return Promise.resolve(JSON.parse(req.body)); } catch { return Promise.resolve({}); }
+    }
+    if (Buffer.isBuffer(req.body)) {
+      try { return Promise.resolve(JSON.parse(req.body.toString('utf8'))); } catch { return Promise.resolve({}); }
+    }
+  }
+  if (typeof req.json === 'function') {
+    return req.json().catch(() => ({}));
+  }
+  if (typeof req.on !== 'function') {
+    return Promise.resolve({});
   }
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
     req.on('data', d => {
       size += d.length;
-      if (size > MAX_BODY) { reject(new Error('body too large')); req.destroy(); return; }
+      if (size > MAX_BODY) { reject(new Error('body too large')); if (typeof req.destroy === 'function') req.destroy(); return; }
       chunks.push(d);
     });
     req.on('end', () => {
@@ -768,7 +779,7 @@ export async function handleRequest(req, res) {
   try { await handler(req, res); }
   catch (e) {
     console.error(key, e);
-    if (!res.headersSent) json(res, 500, { error: 'server error' });
+    if (!res.headersSent) json(res, 500, { error: 'server error', message: e?.message, stack: e?.stack });
   }
 }
 
