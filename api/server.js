@@ -4,6 +4,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {
   generateRegistrationOptions, verifyRegistrationResponse,
   generateAuthenticationOptions, verifyAuthenticationResponse
@@ -39,8 +40,9 @@ for (const envFile of envCandidates) {
 }
 
 const PORT = +(process.env.PORT || 3000);
-const DATA = process.env.DATA_DIR || '/data';
-const RP_ID = process.env.RP_ID || 'localhost';
+const isVercel = !!(process.env.VERCEL || process.env.NOW_REGION);
+const defaultDataDir = isVercel ? path.join(os.tmpdir(), 'opengym-data') : (fs.existsSync('/data') ? '/data' : path.resolve(process.cwd(), 'data'));
+const DATA = process.env.DATA_DIR || defaultDataDir;
 const RP_NAME = process.env.RP_NAME || 'openGym';
 const ORIGIN = process.env.ORIGIN || 'http://localhost:8080';
 const ORIGINS = Array.from(new Set([
@@ -53,6 +55,21 @@ const ORIGINS = Array.from(new Set([
   'http://127.0.0.1:3000',
   ...(process.env.ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
 ]));
+
+function getRpId(req) {
+  const host = (req?.headers?.['x-forwarded-host'] || req?.headers?.host || '').split(':')[0];
+  if (host && host !== 'localhost' && host !== '127.0.0.1') return host;
+  if (process.env.RP_ID) return process.env.RP_ID;
+  return host || 'localhost';
+}
+
+function getOrigin(req) {
+  if (req?.headers?.origin) return req.headers.origin;
+  const proto = req?.headers?.['x-forwarded-proto'] || (req?.socket?.encrypted ? 'https' : 'http');
+  const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host || 'localhost:8080';
+  return `${proto}://${host}`;
+}
+
 // Admin dashboard (issue): admins are matched by uid; INVITE_ONLY gates new signups behind a
 // code the admin generates. Both default off so a fresh self-hosted instance stays open.
 const ADMIN_UIDS = (process.env.ADMIN_UIDS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -66,7 +83,7 @@ const MAX_BODY = 5 * 1024 * 1024;
 // Secure cookies require HTTPS; over plain http://localhost the flag would drop the cookie
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
-fs.mkdirSync(DATA, { recursive: true });
+try { fs.mkdirSync(DATA, { recursive: true }); } catch {}
 // 0700 is what stops the unprivileged user that Coach jobs run as from reading any of this —
 // state files, db.json, the session secret, the provider credential. The Agent SDK process gets
 // its job payload in a temp directory and nothing else. Best-effort: a bind-mounted host directory
@@ -75,8 +92,10 @@ try { fs.chmodSync(DATA, 0o700); } catch { /* host filesystem says no — carry 
 
 /* ---------- secret + db ---------- */
 const secretFile = path.join(DATA, 'secret');
-if (!fs.existsSync(secretFile)) fs.writeFileSync(secretFile, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
-const SECRET = fs.readFileSync(secretFile, 'utf8').trim();
+if (!fs.existsSync(secretFile)) {
+  try { fs.writeFileSync(secretFile, crypto.randomBytes(32).toString('hex'), { mode: 0o600 }); } catch {}
+}
+const SECRET = process.env.SECRET || (fs.existsSync(secretFile) ? fs.readFileSync(secretFile, 'utf8').trim() : 'opengym-default-secret-key-prod');
 
 const dbFile = path.join(DATA, 'db.json');
 let db = { users: [], creds: [], subs: [], invites: [] };
@@ -241,23 +260,40 @@ function requireAdmin(req, res) {
   if (!isAdmin(user)) { json(res, 403, { error: 'forbidden' }); return null; }
   return user;
 }
-function sessionCookie(user) {
-  return `gymsid=${makeSession(user)}; Path=/; Max-Age=${SESSION_DAYS * 86400}; HttpOnly;${SECURE} SameSite=Lax`;
+function sessionCookie(user, req) {
+  const isHttps = (req?.headers?.['x-forwarded-proto'] === 'https') || (req?.socket?.encrypted) || /^https:/i.test(ORIGIN);
+  const secureFlag = isHttps ? ' Secure;' : '';
+  return `gymsid=${makeSession(user)}; Path=/; Max-Age=${SESSION_DAYS * 86400}; HttpOnly;${secureFlag} SameSite=Lax`;
 }
 const clearCookie = `gymsid=; Path=/; Max-Age=0; HttpOnly;${SECURE} SameSite=Lax`;
 
-/* ---------- challenge store (in-memory, 5 min TTL) ---------- */
+/* ---------- challenge store (in-memory + signed token fallback for serverless) ---------- */
 const challenges = new Map(); // cid -> {challenge, name?, uid?, exp}
 function putChallenge(data) {
-  const cid = crypto.randomBytes(16).toString('base64url');
+  const payload = JSON.stringify({ ...data, exp: Date.now() + 5 * 60000 });
+  const b64 = Buffer.from(payload).toString('base64url');
+  const mac = crypto.createHmac('sha256', SECRET).update(b64).digest('base64url');
+  const cid = b64 + '.' + mac;
   challenges.set(cid, { ...data, exp: Date.now() + 5 * 60000 });
   return cid;
 }
 function takeChallenge(cid) {
+  if (!cid) return null;
   const c = challenges.get(cid);
-  challenges.delete(cid);
-  if (!c || c.exp < Date.now()) return null;
-  return c;
+  if (c) {
+    challenges.delete(cid);
+    if (c.exp >= Date.now()) return c;
+  }
+  const i = cid.lastIndexOf('.');
+  if (i < 0) return null;
+  const b64 = cid.slice(0, i), mac = cid.slice(i + 1);
+  const expect = crypto.createHmac('sha256', SECRET).update(b64).digest('base64url');
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expect))) return null;
+    const parsed = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'));
+    if (!parsed || parsed.exp < Date.now()) return null;
+    return parsed;
+  } catch { return null; }
 }
 setInterval(() => { for (const [k, v] of challenges) if (v.exp < Date.now()) challenges.delete(k); }, 60000).unref();
 
@@ -268,6 +304,10 @@ function json(res, code, obj, extraHeaders) {
   res.end(body);
 }
 function readBody(req) {
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === 'object') return Promise.resolve(req.body);
+    try { return Promise.resolve(JSON.parse(req.body)); } catch { return Promise.resolve({}); }
+  }
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
     req.on('data', d => {
@@ -324,8 +364,9 @@ const routes = {
     if (INVITE_ONLY && !db.invites.some(i => i.code === code && !i.usedBy && !i.revoked))
       return json(res, 403, { error: 'a valid invite code is required' });
     const uid = crypto.randomBytes(12).toString('base64url');
+    const rpId = getRpId(req);
     const options = await generateRegistrationOptions({
-      rpName: RP_NAME, rpID: RP_ID,
+      rpName: RP_NAME, rpID: rpId,
       userID: Buffer.from(uid), userName: name, userDisplayName: name,
       attestationType: 'none',
       authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
@@ -339,13 +380,16 @@ const routes = {
     const body = await readBody(req);
     const c = takeChallenge(body.cid);
     if (!c || !c.uid) return json(res, 400, { error: 'challenge expired — try again' });
+    const rpId = getRpId(req);
+    const origin = getOrigin(req);
+    const expectedOrigins = Array.from(new Set([origin, ORIGIN, ...ORIGINS]));
     let verification;
     try {
       verification = await verifyRegistrationResponse({
         response: body.credential,
         expectedChallenge: c.challenge,
-        expectedOrigin: ORIGINS,
-        expectedRPID: RP_ID,
+        expectedOrigin: expectedOrigins,
+        expectedRPID: rpId,
         requireUserVerification: false
       });
     } catch (e) { return json(res, 400, { error: 'verification failed: ' + e.message }); }
@@ -368,12 +412,13 @@ const routes = {
       transports: body.credential?.response?.transports || []
     });
     saveDb();
-    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user) });
+    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user, req) });
   },
 
   'POST /api/login/options': async (req, res) => {
+    const rpId = getRpId(req);
     const options = await generateAuthenticationOptions({
-      rpID: RP_ID, userVerification: 'preferred', allowCredentials: []
+      rpID: rpId, userVerification: 'preferred', allowCredentials: []
     });
     const cid = putChallenge({ challenge: options.challenge });
     json(res, 200, { cid, options });
@@ -385,13 +430,16 @@ const routes = {
     if (!c) return json(res, 400, { error: 'challenge expired — try again' });
     const cred = db.creds.find(x => x.id === body.credential?.id);
     if (!cred) return json(res, 404, { error: 'unknown passkey — create a profile first' });
+    const rpId = getRpId(req);
+    const origin = getOrigin(req);
+    const expectedOrigins = Array.from(new Set([origin, ORIGIN, ...ORIGINS]));
     let verification;
     try {
       verification = await verifyAuthenticationResponse({
         response: body.credential,
         expectedChallenge: c.challenge,
-        expectedOrigin: ORIGINS,
-        expectedRPID: RP_ID,
+        expectedOrigin: expectedOrigins,
+        expectedRPID: rpId,
         requireUserVerification: false,
         credential: {
           id: cred.id,
@@ -407,7 +455,7 @@ const routes = {
     const user = db.users.find(u => u.id === cred.userId);
     if (!user) return json(res, 500, { error: 'user missing' });
     if (user.disabled) return json(res, 403, { error: 'this account has been disabled' });
-    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user) });
+    json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user, req) });
   },
 
   'POST /api/logout': async (req, res) => json(res, 200, { ok: true }, { 'Set-Cookie': clearCookie }),
@@ -603,25 +651,44 @@ const routes = {
 };
 
 /* ---------- Coach: boot recovery, notifications, scheduled reviews ---------- */
-// A job that was running when the process died is not coming back; say so rather than leaving
-// a spinner that never resolves.
-coachJobs.recoverOnBoot();
-// A ready proposal is the one Coach event worth a notification. Failures and "nothing to
-// change" stay silent on purpose (FR-38/E4).
-coachJobs.setProposalHook((uid, pending) => {
-  const n = (pending?.changes || []).length;
-  if (!n) return;
-  sendPush(uid, {
-    title: 'Your Coach has been reading',
-    body: n === 1 ? '1 suggestion after this week' : `${n} suggestions after this week`,
-    tag: 'coach-proposal', url: '#/coach'
+if (!isVercel) {
+  // A job that was running when the process died is not coming back; say so rather than leaving
+  // a spinner that never resolves.
+  coachJobs.recoverOnBoot();
+  // A ready proposal is the one Coach event worth a notification. Failures and "nothing to
+  // change" stay silent on purpose (FR-38/E4).
+  coachJobs.setProposalHook((uid, pending) => {
+    const n = (pending?.changes || []).length;
+    if (!n) return;
+    sendPush(uid, {
+      title: 'Your Coach has been reading',
+      body: n === 1 ? '1 suggestion after this week' : `${n} suggestions after this week`,
+      tag: 'coach-proposal', url: '#/coach'
+    });
   });
-});
-startCadence({ users: () => db.users, userNow });
+  startCadence({ users: () => db.users, userNow });
+}
 
-http.createServer(async (req, res) => {
+export async function handleRequest(req, res) {
+  // Handle CORS
+  const reqOrigin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   const url = new URL(req.url, 'http://x');
-  const key = req.method + ' ' + url.pathname;
+  let pathname = (url.pathname || '/').replace(/\/+$/, '') || '/';
+  if (!pathname.startsWith('/api') && routes[req.method + ' /api' + pathname]) {
+    pathname = '/api' + pathname;
+  }
+  const key = req.method + ' ' + pathname;
   const handler = routes[key];
   if (!handler) return json(res, 404, { error: 'not found' });
   try { await handler(req, res); }
@@ -629,4 +696,11 @@ http.createServer(async (req, res) => {
     console.error(key, e);
     if (!res.headersSent) json(res, 500, { error: 'server error' });
   }
-}).listen(PORT, () => console.log(`gym-api on :${PORT} (rpID=${RP_ID}, origin=${ORIGIN})`));
+}
+
+export default handleRequest;
+
+const isDirectRun = process.argv[1] && (process.argv[1].endsWith('server.js') || process.argv[1].includes('server.js'));
+if (!isVercel && isDirectRun) {
+  http.createServer(handleRequest).listen(PORT, () => console.log(`gym-api on :${PORT} (rpID=${process.env.RP_ID || 'localhost'}, origin=${ORIGIN})`));
+}

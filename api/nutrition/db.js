@@ -1,18 +1,24 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 
 let db = null;
 
 export function getDb() {
   if (db) return db;
+  const isVercel = !!(process.env.VERCEL || process.env.NOW_REGION);
+  const dataDir = process.env.DATA_DIR || (isVercel ? path.join(os.tmpdir(), 'opengym-data') : './data');
+  try { fs.mkdirSync(dataDir, { recursive: true }); } catch {}
+
   // Locate nutrition.db
   const candidates = [
-    path.join(process.env.DATA_DIR || './data', 'nutrition.db'),
+    path.join(dataDir, 'nutrition.db'),
     path.join(process.cwd(), 'data', 'nutrition.db'),
     path.join(process.cwd(), '..', 'data', 'nutrition.db')
   ];
   let dbPath = candidates.find(p => fs.existsSync(p)) || candidates[0];
+  try { fs.mkdirSync(path.dirname(dbPath), { recursive: true }); } catch {}
   db = new DatabaseSync(dbPath);
 
   // Initialize health log tables if needed

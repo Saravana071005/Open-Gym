@@ -1,0 +1,23 @@
+{
+  "name": "opengym",
+  "version": "1.2.3",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "api"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "test": "npm --prefix frontend run test && npm --prefix api run test",
+    "start": "npm --prefix api run start"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^13.1.1",
+    "web-push": "^3.6.7",
+    "zod": "^4.0.0"
+  }
+}
