@@ -15,6 +15,7 @@ import * as coachJobs from './coach/jobs.js';
 import { coachRoutes } from './coach/routes.js';
 import { startCadence } from './coach/cadence.js';
 import { nutritionRoutes } from './nutrition/routes.js';
+import { getMongoDb, pingMongo } from './db/mongo.js';
 
 // Load server environment variables from .env if present
 const envCandidates = [path.resolve(process.cwd(), '.env'), path.resolve(process.cwd(), '../.env')];
@@ -102,8 +103,42 @@ let db = { users: [], creds: [], subs: [], invites: [] };
 try { db = JSON.parse(fs.readFileSync(dbFile, 'utf8')); } catch {}
 db.subs = db.subs || [];
 db.invites = db.invites || [];
+
+async function syncFromMongo() {
+  if (!process.env.MONGODB_URI) return;
+  try {
+    const mongo = await getMongoDb();
+    if (!mongo) return;
+    const users = await mongo.collection('users').find({}).toArray();
+    const creds = await mongo.collection('credentials').find({}).toArray();
+    const invites = await mongo.collection('invites').find({}).toArray();
+    if (users?.length) db.users = users;
+    if (creds?.length) db.creds = creds;
+    if (invites?.length) db.invites = invites;
+  } catch (err) {
+    console.error('Mongo sync error:', err.message);
+  }
+}
+syncFromMongo();
+
 const isAdmin = user => !!user && (user.admin === true || ADMIN_UIDS.includes(user.id));
-function saveDb() { atomicWrite(dbFile, JSON.stringify(db, null, 2)); }
+function saveDb() {
+  try { atomicWrite(dbFile, JSON.stringify(db, null, 2)); } catch {}
+  if (process.env.MONGODB_URI) {
+    getMongoDb().then(async mongo => {
+      if (!mongo) return;
+      for (const u of db.users) {
+        await mongo.collection('users').updateOne({ id: u.id }, { $set: u }, { upsert: true });
+      }
+      for (const c of db.creds) {
+        await mongo.collection('credentials').updateOne({ id: c.id }, { $set: c }, { upsert: true });
+      }
+      for (const i of db.invites) {
+        await mongo.collection('invites').updateOne({ code: i.code }, { $set: i }, { upsert: true });
+      }
+    }).catch(e => console.error('MongoDB persist error:', e.message));
+  }
+}
 function atomicWrite(file, content) {
   const tmp = file + '.tmp';
   fs.writeFileSync(tmp, content);
@@ -339,7 +374,21 @@ setInterval(() => { for (const [k, v] of presence) if (Date.now() - v.updatedAt 
 
 /* ---------- routes ---------- */
 const routes = {
-  'GET /api/health': async (req, res) => json(res, 200, { ok: true, users: db.users.length }),
+  'GET /api/health': async (req, res) => {
+    let mongoStatus = { connected: false, configured: false };
+    if (process.env.MONGODB_URI) {
+      mongoStatus = await pingMongo();
+    }
+    json(res, 200, {
+      ok: true,
+      users: db.users.length,
+      database: {
+        type: process.env.MONGODB_URI ? 'mongodb' : 'sqlite_file',
+        connected: process.env.MONGODB_URI ? mongoStatus.connected : true,
+        configured: !!process.env.MONGODB_URI
+      }
+    });
+  },
 
   // Public config the login screen needs before anyone is signed in. `coach` is absent unless
   // the instance has both switched the Coach on and successfully connected a provider — the
@@ -475,6 +524,17 @@ const routes = {
   'GET /api/data': async (req, res) => {
     const user = readSession(req);
     if (!user) return json(res, 401, { error: 'not signed in' });
+    if (process.env.MONGODB_URI) {
+      try {
+        const mongo = await getMongoDb();
+        if (mongo) {
+          const doc = await mongo.collection('states').findOne({ userId: user.id });
+          if (doc?.state) return json(res, 200, { state: doc.state });
+        }
+      } catch (err) {
+        console.error('Mongo read state error:', err.message);
+      }
+    }
     try {
       const state = JSON.parse(fs.readFileSync(stateFile(user.id), 'utf8'));
       json(res, 200, { state });
@@ -487,7 +547,21 @@ const routes = {
     const body = await readBody(req);
     if (!body.state || typeof body.state !== 'object') return json(res, 400, { error: 'state required' });
     delete body.state.active;              // in-progress workouts stay device-local
-    atomicWrite(stateFile(user.id), JSON.stringify(body.state));
+    try { atomicWrite(stateFile(user.id), JSON.stringify(body.state)); } catch {}
+    if (process.env.MONGODB_URI) {
+      try {
+        const mongo = await getMongoDb();
+        if (mongo) {
+          await mongo.collection('states').updateOne(
+            { userId: user.id },
+            { $set: { userId: user.id, state: body.state, updatedAt: new Date().toISOString() } },
+            { upsert: true }
+          );
+        }
+      } catch (err) {
+        console.error('Mongo write state error:', err.message);
+      }
+    }
     json(res, 200, { ok: true, ts: body.state._ts || null });
   },
 
